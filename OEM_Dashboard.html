@@ -66,7 +66,8 @@ tr:hover td{background:#f8fafc}
 .total-row td{font-weight:700;border-top:2px solid var(--border);background:#f8fafc}
 
 /* === HOME PAGE === */
-.home-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-bottom:32px}
+.home-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:20px;margin-bottom:32px}
+@media(max-width:1100px){.home-grid{grid-template-columns:repeat(2,1fr) !important}}
 .home-card{background:var(--card);border-radius:16px;padding:32px 28px;box-shadow:var(--shadow);cursor:pointer;transition:all .2s;border:2px solid transparent;text-align:center}
 .home-card:hover{border-color:var(--blue);box-shadow:0 4px 12px rgba(59,130,246,.15);transform:translateY(-2px)}
 .home-card .home-icon{font-size:40px;margin-bottom:12px}
@@ -96,6 +97,7 @@ tr:hover td{background:#f8fafc}
 <nav class="top-nav">
 <button class="top-nav-btn active" onclick="showSection('home',this)">首頁</button>
 <button class="top-nav-btn" onclick="showSection('oem',this)">OEM 儀表板</button>
+<button class="top-nav-btn" onclick="showSection('inventory',this)">OEM 庫存</button>
 <button class="top-nav-btn" onclick="showSection('newprod',this)">新品進度</button>
 <button class="top-nav-btn" onclick="showSection('procure',this)">採購進度</button>
 </nav>
@@ -111,12 +113,18 @@ tr:hover td{background:#f8fafc}
 <div class="home-stat" id="home-oem-stat"></div>
 </div>
 <div class="home-card" onclick="document.querySelectorAll('.top-nav-btn')[2].click()">
+<div class="home-icon">🏭</div>
+<div class="home-title">OEM 庫存</div>
+<div class="home-desc">成品與物料庫存，依客戶分類</div>
+<div class="home-stat" id="home-inv-stat"></div>
+</div>
+<div class="home-card" onclick="document.querySelectorAll('.top-nav-btn')[3].click()">
 <div class="home-icon">🆕</div>
 <div class="home-title">新品進度</div>
 <div class="home-desc">新產品開發追蹤</div>
 <div class="home-stat" id="home-np-stat"></div>
 </div>
-<div class="home-card" onclick="document.querySelectorAll('.top-nav-btn')[3].click()">
+<div class="home-card" onclick="document.querySelectorAll('.top-nav-btn')[4].click()">
 <div class="home-icon">📦</div>
 <div class="home-title">採購進度</div>
 <div class="home-desc">接單生產、採購追蹤</div>
@@ -207,6 +215,18 @@ tr:hover td{background:#f8fafc}
 </div>
 </div>
 
+<!-- ==================== SECTION: OEM 庫存 ==================== -->
+<div id="sec-inventory" class="section">
+<div class="filters">
+<span class="filter-label">客戶</span>
+<select id="finv-cust" class="filter-select" onchange="refreshInventory()"><option value="">全部</option></select>
+<span class="filter-label">類別</span>
+<select id="finv-cat" class="filter-select" onchange="refreshInventory()"><option value="">全部</option><option value="成品">成品</option><option value="物料">物料</option></select>
+</div>
+<div class="kpi-row" id="inv-kpi"></div>
+<div class="table-card"><h3>OEM 庫存明細</h3><div class="subtitle">資料來源：百禎代工廠庫存表</div><div id="inv-table"></div></div>
+</div>
+
 <!-- ==================== SECTION: 新品進度 ==================== -->
 <div id="sec-newprod" class="section">
 <div class="filters">
@@ -242,6 +262,7 @@ const S=RAW.sales;
 const C=RAW.costs;
 const NP=RAW.new_products||[];
 const PC=RAW.procurement||[];
+const INV=RAW.inventory||[];
 
 const CONFIRMED=S.filter(r=>r['月份']!=='待確認');
 const PENDING=S.filter(r=>r['月份']==='待確認');
@@ -281,6 +302,7 @@ function showSection(id,btn){
   btn.classList.add('active');
   if(id==='home')refreshHome();
   if(id==='oem')refresh();
+  if(id==='inventory')refreshInventory();
   if(id==='newprod')refreshNewProd();
   if(id==='procure')refreshProcure();
 }
@@ -312,6 +334,7 @@ function refreshHome(){
     <div class="kpi-card"><div class="kpi-label">進行中項目</div><div class="kpi-value">${npActive+pcActive} 項</div></div>`;
 
   document.getElementById('home-oem-stat').textContent=`本年 ${yearData.length} 筆出貨`;
+  document.getElementById('home-inv-stat').textContent=INV.length>0?INV.length+' 項庫存':'尚無資料';
   document.getElementById('home-np-stat').textContent=npActive>0?npActive+' 項進行中':'尚無資料';
   document.getElementById('home-pc-stat').textContent=pcActive>0?pcActive+' 筆待完成':'尚無資料';
 }
@@ -439,6 +462,40 @@ function refreshPipeline(){
   h+='</tbody></table>';document.getElementById('pipeline-table').innerHTML=h;
 }
 
+// ===== INVENTORY =====
+function refreshInventory(){
+  const cust=document.getElementById('finv-cust').value;
+  const cat=document.getElementById('finv-cat').value;
+  let filtered=INV;
+  if(cust)filtered=filtered.filter(r=>r['客戶']===cust);
+  if(cat)filtered=filtered.filter(r=>r['類別']===cat);
+
+  const totalItems=filtered.length;
+  const totalQty=filtered.reduce((s,r)=>s+r['存量'],0);
+  const totalCost=filtered.reduce((s,r)=>s+r['成本總值'],0);
+  const prodCount=filtered.filter(r=>r['類別']==='成品').length;
+  const matCount=filtered.filter(r=>r['類別']==='物料').length;
+
+  document.getElementById('inv-kpi').innerHTML=`
+    <div class="kpi-card"><div class="kpi-label">總品項數</div><div class="kpi-value">${totalItems} 項</div></div>
+    <div class="kpi-card"><div class="kpi-label">成品品項</div><div class="kpi-value">${prodCount} 項</div></div>
+    <div class="kpi-card"><div class="kpi-label">物料品項</div><div class="kpi-value">${matCount} 項</div></div>
+    <div class="kpi-card"><div class="kpi-label">庫存成本總值</div><div class="kpi-value">${NT(totalCost)}</div></div>`;
+
+  let h='<table><thead><tr><th>客戶</th><th>類別</th><th>產品代號</th><th>產品名稱</th><th class="num">存量</th><th>單位</th><th>最後進貨日</th><th class="num">成本單價</th><th class="num">成本總值</th></tr></thead><tbody>';
+  if(filtered.length===0){
+    h+='<tr><td colspan="9" style="text-align:center;color:var(--text2);padding:40px">尚無庫存資料</td></tr>';
+  }else{
+    filtered.forEach(r=>{
+      const catCls=r['類別']==='成品'?'status-tag status-ship':'status-tag status-prep';
+      h+=`<tr><td><span class="${custTag(r['客戶'])}">${r['客戶']}</span></td><td><span class="${catCls}">${r['類別']}</span></td><td>${r['產品代號']}</td><td>${r['產品名稱']}</td><td class="num">${r['存量'].toLocaleString()}</td><td>${r['單位']}</td><td>${r['最後進貨日']}</td><td class="num">${r['成本單價']?NT(r['成本單價']):'-'}</td><td class="num">${r['成本總值']?NT(r['成本總值']):'-'}</td></tr>`;
+    });
+    const totalVal=filtered.reduce((s,r)=>s+r['成本總值'],0);
+    h+=`<tr class="total-row"><td colspan="4"><strong>合計</strong></td><td class="num">${filtered.reduce((s,r)=>s+r['存量'],0).toLocaleString()}</td><td colspan="3"></td><td class="num">${NT(totalVal)}</td></tr>`;
+  }
+  h+='</tbody></table>';document.getElementById('inv-table').innerHTML=h;
+}
+
 // ===== NEW PRODUCTS =====
 function refreshNewProd(){
   const cust=document.getElementById('fnp-cust').value;
@@ -495,6 +552,11 @@ function refreshProcure(){
 
 // ===== INIT FILTERS =====
 function initFilters(){
+  // Inventory filters
+  const invCusts=[...new Set(INV.map(r=>r['客戶']))].sort();
+  const finvCust=document.getElementById('finv-cust');
+  invCusts.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;finvCust.appendChild(o);});
+
   // New Products filters
   const npCusts=[...new Set(NP.map(r=>r['OEM客戶']))].sort();
   const npStatuses=[...new Set(NP.map(r=>r['進度']))];
