@@ -83,6 +83,25 @@ tr:hover td{background:#f8fafc}
 .status-fill{background:#d1fae5;color:#065f46}
 .status-done{background:#f0fdf4;color:#166534}
 .status-order{background:#e0f2fe;color:#0369a1}
+.status-unsync{background:#fee2e2;color:#991b1b}
+
+/* === MODAL === */
+.modal-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.4);z-index:1000;justify-content:center;align-items:center}
+.modal-overlay.open{display:flex}
+.modal{background:#fff;border-radius:16px;padding:28px;width:90%;max-width:480px;box-shadow:0 20px 60px rgba(0,0,0,.2)}
+.modal h3{font-size:18px;font-weight:800;margin-bottom:20px;color:var(--text)}
+.modal-field{margin-bottom:14px}
+.modal-field label{display:block;font-size:12px;font-weight:600;color:var(--text2);margin-bottom:4px}
+.modal-field input,.modal-field select,.modal-field textarea{width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;background:#fff;color:var(--text)}
+.modal-field textarea{height:60px;resize:vertical}
+.modal-field input:focus,.modal-field select:focus,.modal-field textarea:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(59,130,246,.15)}
+.modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}
+.btn{padding:9px 20px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;transition:.2s}
+.btn-primary{background:var(--blue);color:#fff}.btn-primary:hover{background:#2563eb}
+.btn-cancel{background:#f1f5f9;color:var(--text2)}.btn-cancel:hover{background:#e2e8f0}
+.btn-add{padding:8px 16px;border:none;background:var(--blue);color:#fff;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;transition:.2s;margin-bottom:16px}
+.btn-add:hover{background:#2563eb}
+.btn-sync-hint{display:inline-block;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;padding:6px 14px;border-radius:8px;font-size:12px;font-weight:600;margin-left:12px}
 .status-prep{background:#fef3c7;color:#92400e}
 .status-prod{background:#fce7f3;color:#9d174d}
 .status-ship{background:#d1fae5;color:#065f46}
@@ -236,6 +255,7 @@ tr:hover td{background:#f8fafc}
 <select id="fnp-status" class="filter-select" onchange="refreshNewProd()"><option value="">全部</option></select>
 </div>
 <div class="kpi-row" id="np-kpi"></div>
+<button class="btn-add" onclick="openModal('np')">+ 新增新品</button><span id="np-sync-hint"></span>
 <div class="table-card"><h3>新品開發進度追蹤</h3><div id="np-table"></div></div>
 </div>
 
@@ -248,9 +268,39 @@ tr:hover td{background:#f8fafc}
 <select id="fpc-status" class="filter-select" onchange="refreshProcure()"><option value="">全部</option></select>
 </div>
 <div class="kpi-row" id="pc-kpi"></div>
+<button class="btn-add" onclick="openModal('pc')">+ 新增採購</button><span id="pc-sync-hint"></span>
 <div class="table-card"><h3>採購進度追蹤</h3><div id="pc-table"></div></div>
 </div>
 
+</div>
+
+<!-- MODAL: 新增新品 -->
+<div class="modal-overlay" id="modal-np" onclick="if(event.target===this)closeModal('np')">
+<div class="modal">
+<h3>新增新品進度</h3>
+<div class="modal-field"><label>OEM 客戶</label><select id="np-f-cust"><option value="阿清">阿清</option><option value="蹦闆">蹦闆</option><option value="美兆">美兆</option></select></div>
+<div class="modal-field"><label>產品名稱</label><input id="np-f-name" placeholder="例：益生菌"></div>
+<div class="modal-field"><label>日期</label><input id="np-f-date" type="date"></div>
+<div class="modal-field"><label>進度</label><select id="np-f-status"><option>樣品測試中</option><option>包裝設計中</option><option>印刷中</option><option>充填中</option><option>已完成</option></select></div>
+<div class="modal-field"><label>備註</label><textarea id="np-f-note" placeholder="選填"></textarea></div>
+<div class="modal-actions"><button class="btn btn-cancel" onclick="closeModal('np')">取消</button><button class="btn btn-primary" onclick="saveNewProduct()">新增</button></div>
+</div>
+</div>
+
+<!-- MODAL: 新增採購 -->
+<div class="modal-overlay" id="modal-pc" onclick="if(event.target===this)closeModal('pc')">
+<div class="modal">
+<h3>新增採購進度</h3>
+<div class="modal-field"><label>OEM 客戶</label><select id="pc-f-cust"><option value="阿清">阿清</option><option value="蹦闆">蹦闆</option><option value="美兆">美兆</option></select></div>
+<div class="modal-field"><label>廠商</label><input id="pc-f-vendor" placeholder="例：芮溱"></div>
+<div class="modal-field"><label>產品</label><input id="pc-f-prod" placeholder="例：挪威魚油"></div>
+<div class="modal-field"><label>數量</label><input id="pc-f-qty" type="number" placeholder="例：20000"></div>
+<div class="modal-field"><label>下單日期</label><input id="pc-f-date" type="date"></div>
+<div class="modal-field"><label>預計交期</label><input id="pc-f-due" type="date"></div>
+<div class="modal-field"><label>進度</label><select id="pc-f-status"><option>已下單</option><option>備料中</option><option>生產中</option><option>已出貨</option></select></div>
+<div class="modal-field"><label>備註</label><textarea id="pc-f-note" placeholder="選填"></textarea></div>
+<div class="modal-actions"><button class="btn btn-cancel" onclick="closeModal('pc')">取消</button><button class="btn btn-primary" onclick="saveProcurement()">新增</button></div>
+</div>
 </div>
 
 <script src="oem_data.js"></script>
@@ -294,6 +344,51 @@ function pcStatusTag(s){
   return 'status-tag status-order';
 }
 
+// ===== LOCAL STORAGE =====
+function getLocal(key){try{return JSON.parse(localStorage.getItem(key))||[];}catch(e){return [];}}
+function setLocal(key,data){localStorage.setItem(key,JSON.stringify(data));}
+const localNP=getLocal('oem_np_local');
+const localPC=getLocal('oem_pc_local');
+
+function openModal(type){document.getElementById('modal-'+type).classList.add('open');}
+function closeModal(type){document.getElementById('modal-'+type).classList.remove('open');}
+
+function fmtDate(d){if(!d)return '';const dt=new Date(d);return dt.getFullYear()+'/'+(dt.getMonth()+1).toString().padStart(2,'0')+'/'+dt.getDate().toString().padStart(2,'0');}
+
+function saveNewProduct(){
+  const cust=document.getElementById('np-f-cust').value;
+  const name=document.getElementById('np-f-name').value.trim();
+  const date=document.getElementById('np-f-date').value;
+  const status=document.getElementById('np-f-status').value;
+  const note=document.getElementById('np-f-note').value.trim();
+  if(!name){alert('請輸入產品名稱');return;}
+  localNP.push({'OEM客戶':cust,'產品名稱':name,'日期':fmtDate(date)||fmtDate(new Date().toISOString().slice(0,10)),'進度':status,'備註':note,'_local':true});
+  setLocal('oem_np_local',localNP);
+  closeModal('np');
+  document.getElementById('np-f-name').value='';document.getElementById('np-f-note').value='';
+  refreshNewProd();
+}
+
+function saveProcurement(){
+  const cust=document.getElementById('pc-f-cust').value;
+  const vendor=document.getElementById('pc-f-vendor').value.trim();
+  const prod=document.getElementById('pc-f-prod').value.trim();
+  const qty=parseInt(document.getElementById('pc-f-qty').value)||0;
+  const date=document.getElementById('pc-f-date').value;
+  const due=document.getElementById('pc-f-due').value;
+  const status=document.getElementById('pc-f-status').value;
+  const note=document.getElementById('pc-f-note').value.trim();
+  if(!prod){alert('請輸入產品名稱');return;}
+  localPC.push({'OEM客戶':cust,'廠商':vendor,'產品':prod,'數量':qty,'下單日期':fmtDate(date)||fmtDate(new Date().toISOString().slice(0,10)),'預計交期':fmtDate(due),'進度':status,'備註':note,'_local':true});
+  setLocal('oem_pc_local',localPC);
+  closeModal('pc');
+  document.getElementById('pc-f-vendor').value='';document.getElementById('pc-f-prod').value='';document.getElementById('pc-f-qty').value='';document.getElementById('pc-f-note').value='';
+  refreshProcure();
+}
+
+function deleteLocalNP(idx){localNP.splice(idx,1);setLocal('oem_np_local',localNP);refreshNewProd();}
+function deleteLocalPC(idx){localPC.splice(idx,1);setLocal('oem_pc_local',localPC);refreshProcure();}
+
 // ===== SECTION NAVIGATION =====
 function showSection(id,btn){
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
@@ -323,8 +418,10 @@ function refreshHome(){
   const profit=yearData.reduce((s,r)=>s+r['淨利'],0);
   const margin=rev?profit/rev:0;
   const pendRev=PENDING.reduce((s,r)=>s+r['銷貨收入'],0);
-  const npActive=NP.filter(r=>!r['進度'].includes('完成')).length;
-  const pcActive=PC.filter(r=>!r['進度'].includes('出貨')&&!r['進度'].includes('完成')).length;
+  const allNP=[...NP,...localNP];
+  const allPC=[...PC,...localPC];
+  const npActive=allNP.filter(r=>!r['進度'].includes('完成')).length;
+  const pcActive=allPC.filter(r=>!r['進度'].includes('出貨')&&!r['進度'].includes('完成')).length;
 
   document.getElementById('home-kpi').innerHTML=`
     <div class="kpi-card"><div class="kpi-label">本年營收</div><div class="kpi-value">${NT(rev)}</div></div>
@@ -500,24 +597,32 @@ function refreshInventory(){
 function refreshNewProd(){
   const cust=document.getElementById('fnp-cust').value;
   const status=document.getElementById('fnp-status').value;
-  let filtered=NP;
+  const all=[...NP,...localNP];
+  let filtered=all;
   if(cust)filtered=filtered.filter(r=>r['OEM客戶']===cust);
   if(status)filtered=filtered.filter(r=>r['進度']===status);
 
   const active=filtered.filter(r=>!r['進度'].includes('完成')).length;
   const done=filtered.filter(r=>r['進度'].includes('完成')).length;
+  const unsync=filtered.filter(r=>r._local).length;
 
   document.getElementById('np-kpi').innerHTML=`
     <div class="kpi-card"><div class="kpi-label">總項目數</div><div class="kpi-value">${filtered.length} 項</div></div>
     <div class="kpi-card"><div class="kpi-label">進行中</div><div class="kpi-value">${active} 項</div></div>
     <div class="kpi-card"><div class="kpi-label">已完成</div><div class="kpi-value">${done} 項</div></div>`;
 
-  let h='<table><thead><tr><th>OEM客戶</th><th>產品名稱</th><th>日期</th><th>進度</th><th>備註</th></tr></thead><tbody>';
+  document.getElementById('np-sync-hint').innerHTML=unsync>0?`<span class="btn-sync-hint">${unsync} 筆未同步 — 請告知 Claude 寫回 oem_data.js</span>`:'';
+
+  let h='<table><thead><tr><th>OEM客戶</th><th>產品名稱</th><th>日期</th><th>進度</th><th>備註</th><th>狀態</th></tr></thead><tbody>';
   if(filtered.length===0){
-    h+='<tr><td colspan="5" style="text-align:center;color:var(--text2);padding:40px">尚無新品進度資料，請透過 Claude 新增到 oem_data.js</td></tr>';
+    h+='<tr><td colspan="6" style="text-align:center;color:var(--text2);padding:40px">尚無新品進度資料，點擊上方「+ 新增新品」開始</td></tr>';
   }else{
+    let localIdx=0;
     filtered.forEach(r=>{
-      h+=`<tr><td><span class="${custTag(r['OEM客戶'])}">${r['OEM客戶']}</span></td><td>${r['產品名稱']}</td><td>${r['日期']}</td><td><span class="${npStatusTag(r['進度'])}">${r['進度']}</span></td><td>${r['備註']||''}</td></tr>`;
+      const isLocal=r._local;
+      const syncCol=isLocal?`<span class="status-tag status-unsync">未同步</span> <a href="#" onclick="deleteLocalNP(${localIdx});return false" style="color:#991b1b;font-size:11px">刪除</a>`:'<span class="status-tag status-done">已同步</span>';
+      if(isLocal)localIdx++;
+      h+=`<tr><td><span class="${custTag(r['OEM客戶'])}">${r['OEM客戶']}</span></td><td>${r['產品名稱']}</td><td>${r['日期']}</td><td><span class="${npStatusTag(r['進度'])}">${r['進度']}</span></td><td>${r['備註']||''}</td><td>${syncCol}</td></tr>`;
     });
   }
   h+='</tbody></table>';document.getElementById('np-table').innerHTML=h;
@@ -527,24 +632,32 @@ function refreshNewProd(){
 function refreshProcure(){
   const cust=document.getElementById('fpc-cust').value;
   const status=document.getElementById('fpc-status').value;
-  let filtered=PC;
+  const all=[...PC,...localPC];
+  let filtered=all;
   if(cust)filtered=filtered.filter(r=>r['OEM客戶']===cust);
   if(status)filtered=filtered.filter(r=>r['進度']===status);
 
   const active=filtered.filter(r=>!r['進度'].includes('出貨')&&!r['進度'].includes('完成')).length;
   const done=filtered.filter(r=>r['進度'].includes('出貨')||r['進度'].includes('完成')).length;
+  const unsync=filtered.filter(r=>r._local).length;
 
   document.getElementById('pc-kpi').innerHTML=`
     <div class="kpi-card"><div class="kpi-label">總筆數</div><div class="kpi-value">${filtered.length} 筆</div></div>
     <div class="kpi-card"><div class="kpi-label">進行中</div><div class="kpi-value">${active} 筆</div></div>
     <div class="kpi-card"><div class="kpi-label">已完成</div><div class="kpi-value">${done} 筆</div></div>`;
 
-  let h='<table><thead><tr><th>OEM客戶</th><th>廠商</th><th>產品</th><th class="num">數量</th><th>下單日期</th><th>預計交期</th><th>進度</th><th>備註</th></tr></thead><tbody>';
+  document.getElementById('pc-sync-hint').innerHTML=unsync>0?`<span class="btn-sync-hint">${unsync} 筆未同步 — 請告知 Claude 寫回 oem_data.js</span>`:'';
+
+  let h='<table><thead><tr><th>OEM客戶</th><th>廠商</th><th>產品</th><th class="num">數量</th><th>下單日期</th><th>預計交期</th><th>進度</th><th>備註</th><th>狀態</th></tr></thead><tbody>';
   if(filtered.length===0){
-    h+='<tr><td colspan="8" style="text-align:center;color:var(--text2);padding:40px">尚無採購進度資料，請透過 Claude 新增到 oem_data.js</td></tr>';
+    h+='<tr><td colspan="9" style="text-align:center;color:var(--text2);padding:40px">尚無採購進度資料，點擊上方「+ 新增採購」開始</td></tr>';
   }else{
+    let localIdx=0;
     filtered.forEach(r=>{
-      h+=`<tr><td><span class="${custTag(r['OEM客戶'])}">${r['OEM客戶']}</span></td><td>${r['廠商']}</td><td>${r['產品']}</td><td class="num">${r['數量'].toLocaleString()}</td><td>${r['下單日期']}</td><td>${r['預計交期']}</td><td><span class="${pcStatusTag(r['進度'])}">${r['進度']}</span></td><td>${r['備註']||''}</td></tr>`;
+      const isLocal=r._local;
+      const syncCol=isLocal?`<span class="status-tag status-unsync">未同步</span> <a href="#" onclick="deleteLocalPC(${localIdx});return false" style="color:#991b1b;font-size:11px">刪除</a>`:'<span class="status-tag status-done">已同步</span>';
+      if(isLocal)localIdx++;
+      h+=`<tr><td><span class="${custTag(r['OEM客戶'])}">${r['OEM客戶']}</span></td><td>${r['廠商']}</td><td>${r['產品']}</td><td class="num">${(r['數量']||0).toLocaleString()}</td><td>${r['下單日期']}</td><td>${r['預計交期']}</td><td><span class="${pcStatusTag(r['進度'])}">${r['進度']}</span></td><td>${r['備註']||''}</td><td>${syncCol}</td></tr>`;
     });
   }
   h+='</tbody></table>';document.getElementById('pc-table').innerHTML=h;
