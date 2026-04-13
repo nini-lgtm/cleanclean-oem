@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>淨淨 OEM 營運管理系統</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#f5f7fa;--card:#ffffff;--border:#e2e8f0;--text:#1e293b;--text2:#64748b;--blue:#3b82f6;--green:#22c55e;--orange:#f59e0b;--red:#ef4444;--purple:#8b5cf6;--shadow:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.06)}
+body{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);line-height:1.5}
+.container{max-width:1400px;margin:0 auto;padding:20px}
+.top-nav{display:flex;gap:4px;background:var(--card);padding:6px;border-radius:12px;box-shadow:var(--shadow);margin-bottom:24px;flex-wrap:wrap}
+.top-nav-btn{padding:10px 20px;border:none;background:transparent;color:var(--text2);font-size:14px;font-weight:600;cursor:pointer;border-radius:8px;transition:.2s}
+.top-nav-btn.active{background:var(--blue);color:#fff}
+.top-nav-btn:hover:not(.active){background:#f1f5f9}
+.section{display:none}.section.active{display:block}
+.nav{display:flex;gap:4px;background:var(--card);padding:6px;border-radius:12px;box-shadow:var(--shadow);margin-bottom:24px;flex-wrap:wrap}
+.nav-btn{padding:10px 20px;border:none;background:transparent;color:var(--text2);font-size:14px;font-weight:600;cursor:pointer;border-radius:8px;transition:.2s}
+.nav-btn.active{background:var(--blue);color:#fff}
+.nav-btn:hover:not(.active){background:#f1f5f9}
+.page{display:none}.page.active{display:block}
+.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:16px}
+.header h1{font-size:28px;font-weight:800;color:var(--text)}
+.header h1 span{color:var(--blue)}
+.header-sub{font-size:13px;color:var(--text2)}
+.filters{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:24px;align-items:center}
+.filter-label{font-size:13px;font-weight:600;color:var(--text2)}
+.filter-select{padding:8px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;background:#fff;color:var(--text);min-width:120px;cursor:pointer}
+.filter-select:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(59,130,246,.15)}
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:24px}
+.kpi-card{background:var(--card);border-radius:12px;padding:20px;box-shadow:var(--shadow);border-left:4px solid var(--blue)}
+.kpi-card:nth-child(2){border-left-color:var(--green)}
+.kpi-card:nth-child(3){border-left-color:var(--orange)}
+.kpi-card:nth-child(4){border-left-color:var(--purple)}
+.kpi-card:nth-child(5){border-left-color:#ec4899}
+.kpi-label{font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.kpi-value{font-size:22px;font-weight:800;color:var(--text)}
+.chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px}
+.chart-card{background:var(--card);border-radius:12px;padding:20px;box-shadow:var(--shadow)}
+.chart-card h3{font-size:15px;font-weight:700;color:var(--text);margin-bottom:12px}
+.chart-card.full{grid-column:1/-1}
+@media(max-width:900px){.chart-grid{grid-template-columns:1fr}.home-grid{grid-template-columns:1fr !important}}
+.table-card{background:var(--card);border-radius:12px;padding:20px;box-shadow:var(--shadow);margin-bottom:24px;overflow-x:auto}
+.table-card h3{font-size:15px;font-weight:700;margin-bottom:12px}
+.table-card .subtitle{font-size:12px;color:var(--text2);margin-bottom:12px}
+.search-box{padding:8px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;width:260px;margin-bottom:12px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{background:#f8fafc;color:var(--text2);font-weight:600;padding:10px 12px;text-align:left;border-bottom:2px solid var(--border);white-space:nowrap}
+td{padding:9px 12px;border-bottom:1px solid #f1f5f9;white-space:nowrap}
+tr:hover td{background:#f8fafc}
+.num{text-align:right;font-variant-numeric:tabular-nums}
+.pct-green{color:var(--green);font-weight:600}
+.pct-orange{color:var(--orange);font-weight:600}
+.pct-red{color:var(--red);font-weight:600}
+.cost-red{color:var(--red);font-weight:600}
+.tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600}
+.tag-aq{background:#dbeafe;color:#1d4ed8}
+.tag-bb{background:#fef3c7;color:#92400e}
+.tag-mz{background:#ede9fe;color:#6d28d9}
+.tag-pending{background:#fef3c7;color:#92400e;font-size:11px;padding:2px 6px;border-radius:4px}
+.pipeline-banner{background:linear-gradient(135deg,#fefce8,#fef9c3);border:1px solid #fde68a;border-radius:12px;padding:16px 20px;margin-bottom:24px}
+.pipeline-banner h3{font-size:14px;font-weight:700;color:#92400e;margin-bottom:8px}
+.pipeline-banner .pipe-val{font-size:13px;color:#78350f}
+.total-row td{font-weight:700;border-top:2px solid var(--border);background:#f8fafc}
+
+/* === HOME PAGE === */
+.home-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-bottom:32px}
+.home-card{background:var(--card);border-radius:16px;padding:32px 28px;box-shadow:var(--shadow);cursor:pointer;transition:all .2s;border:2px solid transparent;text-align:center}
+.home-card:hover{border-color:var(--blue);box-shadow:0 4px 12px rgba(59,130,246,.15);transform:translateY(-2px)}
+.home-card .home-icon{font-size:40px;margin-bottom:12px}
+.home-card .home-title{font-size:18px;font-weight:800;color:var(--text);margin-bottom:6px}
+.home-card .home-desc{font-size:13px;color:var(--text2);margin-bottom:12px}
+.home-card .home-stat{font-size:15px;font-weight:700;color:var(--blue)}
+
+/* === STATUS TAGS === */
+.status-tag{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600}
+.status-sample{background:#dbeafe;color:#1d4ed8}
+.status-design{background:#ede9fe;color:#6d28d9}
+.status-print{background:#fef3c7;color:#92400e}
+.status-fill{background:#d1fae5;color:#065f46}
+.status-done{background:#f0fdf4;color:#166534}
+.status-order{background:#e0f2fe;color:#0369a1}
+.status-prep{background:#fef3c7;color:#92400e}
+.status-prod{background:#fce7f3;color:#9d174d}
+.status-ship{background:#d1fae5;color:#065f46}
+</style>
+</head>
+<body>
+<div class="container">
+<div class="header">
+<div><h1><span>淨淨</span> OEM 營運管理系統</h1><div class="header-sub">更新日期 2026/04/13</div></div>
+</div>
+
+<nav class="top-nav">
+<button class="top-nav-btn active" onclick="showSection('home',this)">首頁</button>
+<button class="top-nav-btn" onclick="showSection('oem',this)">OEM 儀表板</button>
+<button class="top-nav-btn" onclick="showSection('newprod',this)">新品進度</button>
+<button class="top-nav-btn" onclick="showSection('procure',this)">採購進度</button>
+</nav>
+
+<!-- ==================== SECTION: 首頁 ==================== -->
+<div id="sec-home" class="section active">
+<div class="kpi-row" id="home-kpi"></div>
+<div class="home-grid">
+<div class="home-card" onclick="document.querySelectorAll('.top-nav-btn')[1].click()">
+<div class="home-icon">📊</div>
+<div class="home-title">OEM 儀表板</div>
+<div class="home-desc">營收、淨利、客戶分析、成本明細</div>
+<div class="home-stat" id="home-oem-stat"></div>
+</div>
+<div class="home-card" onclick="document.querySelectorAll('.top-nav-btn')[2].click()">
+<div class="home-icon">🆕</div>
+<div class="home-title">新品進度</div>
+<div class="home-desc">新產品開發追蹤</div>
+<div class="home-stat" id="home-np-stat"></div>
+</div>
+<div class="home-card" onclick="document.querySelectorAll('.top-nav-btn')[3].click()">
+<div class="home-icon">📦</div>
+<div class="home-title">採購進度</div>
+<div class="home-desc">接單生產、採購追蹤</div>
+<div class="home-stat" id="home-pc-stat"></div>
+</div>
+</div>
+</div>
+
+<!-- ==================== SECTION: OEM 儀表板 ==================== -->
+<div id="sec-oem" class="section">
+<nav class="nav">
+<button class="nav-btn active" onclick="showPage('overview',this)">總覽</button>
+<button class="nav-btn" onclick="showPage('customer',this)">客戶分析</button>
+<button class="nav-btn" onclick="showPage('cost',this)">成本分析</button>
+<button class="nav-btn" onclick="showPage('detail',this)">銷售明細</button>
+<button class="nav-btn" onclick="showPage('pipeline',this)">待出貨</button>
+</nav>
+
+<!-- PAGE 1: 總覽 -->
+<div id="page-overview" class="page active">
+<div class="filters">
+<span class="filter-label">年度</span>
+<select id="f-year" class="filter-select" onchange="refresh()"><option value="">全部</option><option value="2023年">2023年</option><option value="2024年">2024年</option><option value="2025年">2025年</option><option value="2026年" selected>2026年</option></select>
+<span class="filter-label">月份</span>
+<select id="f-month" class="filter-select" onchange="refresh()"><option value="">全部</option><option value="01月">01月</option><option value="02月">02月</option><option value="03月">03月</option><option value="04月">04月</option><option value="05月">05月</option><option value="06月">06月</option><option value="07月">07月</option><option value="08月">08月</option><option value="09月">09月</option><option value="10月">10月</option><option value="11月">11月</option><option value="12月">12月</option></select>
+<span class="filter-label">客戶</span>
+<select id="f-cust" class="filter-select" onchange="refresh()"><option value="">全部</option><option value="阿清">阿清</option><option value="蹦闆">蹦闆</option><option value="美兆">美兆</option></select>
+</div>
+<div id="pipeline-summary"></div>
+<div class="kpi-row" id="kpi-row"></div>
+<div class="chart-grid">
+<div class="chart-card full"><h3>月份淨利趨勢（近兩年）</h3><canvas id="chartLine"></canvas></div>
+<div class="chart-card"><h3>各年度營收與淨利</h3><canvas id="chartBar"></canvas></div>
+<div class="chart-card"><h3>客戶營收佔比</h3><canvas id="chartDonut"></canvas></div>
+</div>
+</div>
+
+<!-- PAGE 2: 客戶分析 -->
+<div id="page-customer" class="page">
+<div class="filters">
+<span class="filter-label">客戶</span>
+<select id="fc-cust" class="filter-select" onchange="refreshCustomer()"><option value="">全部</option><option value="阿清">阿清</option><option value="蹦闆">蹦闆</option><option value="美兆">美兆</option></select>
+<span class="filter-label">年度</span>
+<select id="fc-year" class="filter-select" onchange="refreshCustomer()"><option value="">全部</option><option value="2023年">2023年</option><option value="2024年">2024年</option><option value="2025年">2025年</option><option value="2026年" selected>2026年</option></select>
+<span class="filter-label">月份</span>
+<select id="fc-month" class="filter-select" onchange="refreshCustomer()"><option value="">全部</option><option value="01月">01月</option><option value="02月">02月</option><option value="03月">03月</option><option value="04月">04月</option><option value="05月">05月</option><option value="06月">06月</option><option value="07月">07月</option><option value="08月">08月</option><option value="09月">09月</option><option value="10月">10月</option><option value="11月">11月</option><option value="12月">12月</option></select>
+</div>
+<div class="kpi-row" id="ckpi-row"></div>
+<div class="chart-grid">
+<div class="chart-card"><h3>月份淨利趨勢</h3><canvas id="cChartLine"></canvas></div>
+<div class="chart-card"><h3>產品營收佔比</h3><div id="cDonutWrap" style="position:relative;max-height:300px;display:flex;align-items:center;justify-content:center"><canvas id="cChartDonut"></canvas></div><div id="cDonutLegend" style="margin-top:8px"></div></div>
+<div class="chart-card"><h3>各產品淨利率比較</h3><canvas id="cChartMargin"></canvas></div>
+</div>
+<div class="table-card"><h3>訂單明細（已入帳）</h3><div id="cust-table"></div></div>
+</div>
+
+<!-- PAGE 3: 成本分析 -->
+<div id="page-cost" class="page">
+<div class="filters">
+<span class="filter-label">客戶</span>
+<select id="fk-cust" class="filter-select" onchange="refreshCost()"><option value="">全部</option><option value="阿清">阿清</option><option value="蹦闆">蹦闆</option><option value="美兆">美兆</option></select>
+</div>
+<div class="table-card"><h3>成本明細與毛利分析</h3><div id="cost-table"></div></div>
+</div>
+
+<!-- PAGE 4: 銷售明細 -->
+<div id="page-detail" class="page">
+<div class="filters">
+<span class="filter-label">年度</span>
+<select id="fd-year" class="filter-select" onchange="refreshDetail()"><option value="">全部</option><option value="2023年">2023年</option><option value="2024年">2024年</option><option value="2025年">2025年</option><option value="2026年" selected>2026年</option></select>
+<span class="filter-label">月份</span>
+<select id="fd-month" class="filter-select" onchange="refreshDetail()"><option value="">全部</option><option value="01月">01月</option><option value="02月">02月</option><option value="03月">03月</option><option value="04月">04月</option><option value="05月">05月</option><option value="06月">06月</option><option value="07月">07月</option><option value="08月">08月</option><option value="09月">09月</option><option value="10月">10月</option><option value="11月">11月</option><option value="12月">12月</option></select>
+<span class="filter-label">客戶</span>
+<select id="fd-cust" class="filter-select" onchange="refreshDetail()"><option value="">全部</option><option value="阿清">阿清</option><option value="蹦闆">蹦闆</option><option value="美兆">美兆</option></select>
+<input type="text" id="fd-search" class="search-box" placeholder="搜尋產品 / 規格..." oninput="refreshDetail()">
+</div>
+<div class="table-card"><h3>已入帳銷售明細</h3><div class="subtitle">僅顯示已確認月份的訂單</div><div id="detail-table"></div></div>
+</div>
+
+<!-- PAGE 5: 待出貨 -->
+<div id="page-pipeline" class="page">
+<div class="pipeline-banner">
+<h3>更新方式</h3>
+<div class="pipe-val">訂單出貨收款後，請直接告知 Claude 更新 oem_data.js 資料。</div>
+</div>
+<div class="kpi-row" id="pkpi-row"></div>
+<div class="table-card"><h3>待出貨訂單</h3><div id="pipeline-table"></div></div>
+</div>
+</div>
+
+<!-- ==================== SECTION: 新品進度 ==================== -->
+<div id="sec-newprod" class="section">
+<div class="filters">
+<span class="filter-label">客戶</span>
+<select id="fnp-cust" class="filter-select" onchange="refreshNewProd()"><option value="">全部</option></select>
+<span class="filter-label">進度</span>
+<select id="fnp-status" class="filter-select" onchange="refreshNewProd()"><option value="">全部</option></select>
+</div>
+<div class="kpi-row" id="np-kpi"></div>
+<div class="table-card"><h3>新品開發進度追蹤</h3><div id="np-table"></div></div>
+</div>
+
+<!-- ==================== SECTION: 採購進度 ==================== -->
+<div id="sec-procure" class="section">
+<div class="filters">
+<span class="filter-label">客戶</span>
+<select id="fpc-cust" class="filter-select" onchange="refreshProcure()"><option value="">全部</option></select>
+<span class="filter-label">進度</span>
+<select id="fpc-status" class="filter-select" onchange="refreshProcure()"><option value="">全部</option></select>
+</div>
+<div class="kpi-row" id="pc-kpi"></div>
+<div class="table-card"><h3>採購進度追蹤</h3><div id="pc-table"></div></div>
+</div>
+
+</div>
+
+<script src="oem_data.js"></script>
+<script>
+Chart.register(ChartDataLabels);
+Chart.defaults.set('plugins.datalabels', {display: false});
+
+const S=RAW.sales;
+const C=RAW.costs;
+const NP=RAW.new_products||[];
+const PC=RAW.procurement||[];
+
+const CONFIRMED=S.filter(r=>r['月份']!=='待確認');
+const PENDING=S.filter(r=>r['月份']==='待確認');
+
+const MONTHS=['01月','02月','03月','04月','05月','06月','07月','08月','09月','10月','11月','12月'];
+const COLORS=['#3b82f6','#22c55e','#f59e0b','#8b5cf6','#ec4899','#14b8a6','#f97316','#6366f1','#84cc16','#06b6d4','#e11d48','#a855f7'];
+const charts={};
+
+function NT(v){return '$'+Math.round(v).toLocaleString();}
+function PCT(v){return (v*100).toFixed(1)+'%';}
+function pctCls(v){return v>=.2?'pct-green':v>=.1?'pct-orange':'pct-red';}
+function custTag(c){return c==='阿清'?'tag tag-aq':c==='蹦闆'?'tag tag-bb':'tag tag-mz';}
+function filterConfirmed(y,m,c){return CONFIRMED.filter(r=>{if(y&&r['年度']!==y)return false;if(m&&r['月份']!==m)return false;if(c&&r['OEM客戶']!==c)return false;return true;});}
+function destroyChart(k){if(charts[k]){charts[k].destroy();delete charts[k];}}
+
+function npStatusTag(s){
+  if(s.includes('樣品'))return 'status-tag status-sample';
+  if(s.includes('設計'))return 'status-tag status-design';
+  if(s.includes('印刷'))return 'status-tag status-print';
+  if(s.includes('充填'))return 'status-tag status-fill';
+  if(s.includes('完成'))return 'status-tag status-done';
+  return 'status-tag status-sample';
+}
+function pcStatusTag(s){
+  if(s.includes('下單'))return 'status-tag status-order';
+  if(s.includes('備料'))return 'status-tag status-prep';
+  if(s.includes('生產'))return 'status-tag status-prod';
+  if(s.includes('出貨')||s.includes('完成'))return 'status-tag status-ship';
+  return 'status-tag status-order';
+}
+
+// ===== SECTION NAVIGATION =====
+function showSection(id,btn){
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.getElementById('sec-'+id).classList.add('active');
+  document.querySelectorAll('.top-nav-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  if(id==='home')refreshHome();
+  if(id==='oem')refresh();
+  if(id==='newprod')refreshNewProd();
+  if(id==='procure')refreshProcure();
+}
+
+function showPage(id,btn){
+  document.querySelectorAll('#sec-oem .page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  document.querySelectorAll('#sec-oem .nav-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  if(id==='customer')refreshCustomer();if(id==='cost')refreshCost();if(id==='detail')refreshDetail();if(id==='pipeline')refreshPipeline();
+}
+
+// ===== HOME =====
+function refreshHome(){
+  const thisYear='2026年';
+  const yearData=CONFIRMED.filter(r=>r['年度']===thisYear);
+  const rev=yearData.reduce((s,r)=>s+r['銷貨收入'],0);
+  const profit=yearData.reduce((s,r)=>s+r['淨利'],0);
+  const margin=rev?profit/rev:0;
+  const pendRev=PENDING.reduce((s,r)=>s+r['銷貨收入'],0);
+  const npActive=NP.filter(r=>!r['進度'].includes('完成')).length;
+  const pcActive=PC.filter(r=>!r['進度'].includes('出貨')&&!r['進度'].includes('完成')).length;
+
+  document.getElementById('home-kpi').innerHTML=`
+    <div class="kpi-card"><div class="kpi-label">本年營收</div><div class="kpi-value">${NT(rev)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">本年淨利</div><div class="kpi-value">${NT(profit)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">本年淨利率</div><div class="kpi-value">${PCT(margin)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">待出貨金額</div><div class="kpi-value">${NT(pendRev)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">進行中項目</div><div class="kpi-value">${npActive+pcActive} 項</div></div>`;
+
+  document.getElementById('home-oem-stat').textContent=`本年 ${yearData.length} 筆出貨`;
+  document.getElementById('home-np-stat').textContent=npActive>0?npActive+' 項進行中':'尚無資料';
+  document.getElementById('home-pc-stat').textContent=pcActive>0?pcActive+' 筆待完成':'尚無資料';
+}
+
+// ===== OEM OVERVIEW =====
+function makeKPI(elId,data){
+  const el=document.getElementById(elId);
+  const rev=data.reduce((s,r)=>s+r['銷貨收入'],0);
+  const cost=data.reduce((s,r)=>s+r['銷貨成本'],0);
+  const profit=data.reduce((s,r)=>s+r['淨利'],0);
+  const margin=rev?profit/rev:0;
+  const items=[{label:'銷貨收入',val:NT(rev)},{label:'銷貨成本',val:NT(cost)},{label:'淨利',val:NT(profit)},{label:'淨利率',val:PCT(margin)},{label:'訂單筆數',val:data.length+'筆'}];
+  el.innerHTML=items.map(it=>`<div class="kpi-card"><div class="kpi-label">${it.label}</div><div class="kpi-value">${it.val}</div></div>`).join('');
+}
+
+function refresh(){
+  const y=document.getElementById('f-year').value;
+  const m=document.getElementById('f-month').value;
+  const c=document.getElementById('f-cust').value;
+  const filtered=filterConfirmed(y,m,c);
+  const pendFiltered=PENDING.filter(r=>{if(y&&r['年度']!==y)return false;if(c&&r['OEM客戶']!==c)return false;return true;});
+  const pendRev=pendFiltered.reduce((s,r)=>s+r['銷貨收入'],0);
+  const pendProfit=pendFiltered.reduce((s,r)=>s+r['淨利'],0);
+  if(pendFiltered.length>0){
+    document.getElementById('pipeline-summary').innerHTML=`<div class="pipeline-banner"><h3>待出貨（未納入下方計算）</h3><div class="pipe-val">共 ${pendFiltered.length} 筆 ｜ 預估銷貨收入 ${NT(pendRev)} ｜ 預估淨利 ${NT(pendProfit)}</div></div>`;
+  }else{document.getElementById('pipeline-summary').innerHTML='';}
+  makeKPI('kpi-row',filtered);
+
+  destroyChart('line');
+  const recentYears=['2025年','2026年'];
+  const lineData={};
+  const lineFiltered=CONFIRMED.filter(r=>{if(m&&r['月份']!==m)return false;if(c&&r['OEM客戶']!==c)return false;return recentYears.includes(r['年度']);});
+  lineFiltered.forEach(r=>{const yr=r['年度'],mo=r['月份'];if(!lineData[yr])lineData[yr]={};lineData[yr][mo]=(lineData[yr][mo]||0)+r['淨利'];});
+  const lineDs=recentYears.filter(yr=>lineData[yr]).map((yr,i)=>({label:yr,data:MONTHS.map(m=>lineData[yr]?.[m]||null),borderColor:i===0?'#94a3b8':'#3b82f6',backgroundColor:i===0?'#94a3b822':'#3b82f622',tension:.3,fill:false,spanGaps:true,pointRadius:4,borderWidth:i===0?2:3}));
+  charts.line=new Chart(document.getElementById('chartLine'),{type:'line',data:{labels:MONTHS,datasets:lineDs},options:{responsive:true,maintainAspectRatio:true,aspectRatio:3,plugins:{legend:{position:'top'},datalabels:{display:false}},scales:{y:{ticks:{callback:v=>NT(v)}}}}});
+
+  destroyChart('bar');
+  const bYears=[...new Set(filtered.map(r=>r['年度']))].sort();
+  charts.bar=new Chart(document.getElementById('chartBar'),{type:'bar',data:{labels:bYears,datasets:[{label:'銷貨收入',data:bYears.map(yr=>filtered.filter(r=>r['年度']===yr).reduce((s,r)=>s+r['銷貨收入'],0)),backgroundColor:'#3b82f6'},{label:'淨利',data:bYears.map(yr=>filtered.filter(r=>r['年度']===yr).reduce((s,r)=>s+r['淨利'],0)),backgroundColor:'#22c55e'}]},options:{responsive:true,plugins:{legend:{position:'top'},datalabels:{display:false}},scales:{y:{ticks:{callback:v=>NT(v)}}}}});
+
+  destroyChart('donut');
+  const cm={};filtered.forEach(r=>{cm[r['OEM客戶']]=(cm[r['OEM客戶']]||0)+r['銷貨收入'];});
+  const cl=Object.keys(cm).sort();const totalRev=cl.reduce((s,c)=>s+cm[c],0);
+  charts.donut=new Chart(document.getElementById('chartDonut'),{type:'doughnut',data:{labels:cl,datasets:[{data:cl.map(c=>cm[c]),backgroundColor:['#3b82f6','#f59e0b','#8b5cf6']}]},options:{responsive:true,plugins:{legend:{position:'bottom'},datalabels:{display:false},tooltip:{callbacks:{label:ctx=>ctx.label+': '+NT(ctx.raw)+' ('+PCT(ctx.raw/totalRev)+')'}}}}});
+}
+
+// ===== CUSTOMER =====
+function refreshCustomer(){
+  const cust=document.getElementById('fc-cust').value;
+  const y=document.getElementById('fc-year').value;
+  const m=document.getElementById('fc-month').value;
+  const filtered=filterConfirmed(y,m,cust);
+  makeKPI('ckpi-row',filtered);
+
+  destroyChart('cline');
+  const ld={};filtered.forEach(r=>{const yr=r['年度'];if(!ld[yr])ld[yr]={};ld[yr][r['月份']]=(ld[yr][r['月份']]||0)+r['淨利'];});
+  const ds=Object.keys(ld).sort().map((yr,i)=>({label:yr,data:MONTHS.map(m=>ld[yr][m]||null),borderColor:COLORS[i],tension:.3,fill:false,spanGaps:true,pointRadius:4}));
+  charts.cline=new Chart(document.getElementById('cChartLine'),{type:'line',data:{labels:MONTHS,datasets:ds},options:{responsive:true,plugins:{datalabels:{display:false}},scales:{y:{ticks:{callback:v=>NT(v)}}}}});
+
+  destroyChart('cdonut');
+  const pm={};filtered.forEach(r=>{pm[r['產品']]=(pm[r['產品']]||0)+r['銷貨收入'];});
+  const pl=Object.keys(pm).sort((a,b)=>pm[b]-pm[a]);const totalProdRev=pl.reduce((s,p)=>s+pm[p],0);
+  charts.cdonut=new Chart(document.getElementById('cChartDonut'),{type:'doughnut',data:{labels:pl,datasets:[{data:pl.map(p=>pm[p]),backgroundColor:COLORS}]},options:{responsive:true,maintainAspectRatio:true,aspectRatio:1.3,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>ctx.label+': '+NT(ctx.raw)}},datalabels:{display:false}}}});
+  const legendEl=document.getElementById('cDonutLegend');
+  legendEl.innerHTML=pl.map((p,i)=>{const pct=totalProdRev?(pm[p]/totalProdRev*100).toFixed(1)+'%':'0%';return `<div style="display:flex;align-items:center;gap:6px;margin:4px 0;font-size:12px;font-weight:600"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${COLORS[i]};flex-shrink:0"></span><span style="color:#1e293b">${p}</span><span style="color:#64748b">${pct}</span></div>`;}).join('');
+
+  destroyChart('cmargin');
+  const prodMargin={};
+  filtered.forEach(r=>{const p=r['產品'];if(!prodMargin[p])prodMargin[p]={rev:0,profit:0};prodMargin[p].rev+=r['銷貨收入'];prodMargin[p].profit+=r['淨利'];});
+  const mProds=Object.keys(prodMargin).sort((a,b)=>prodMargin[b].rev-prodMargin[a].rev);
+  const margins=mProds.map(p=>prodMargin[p].rev?prodMargin[p].profit/prodMargin[p].rev:0);
+  charts.cmargin=new Chart(document.getElementById('cChartMargin'),{type:'bar',data:{labels:mProds,datasets:[{label:'淨利率',data:margins,backgroundColor:margins.map(v=>v>=.2?'#22c55e':v>=.1?'#f59e0b':'#ef4444')}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:true,aspectRatio:Math.max(1.8,3-mProds.length*0.15),plugins:{legend:{display:false},datalabels:{display:true,anchor:'end',align:'end',color:'#1e293b',font:{size:11,weight:'600'},formatter:v=>PCT(v)}},scales:{x:{ticks:{callback:v=>PCT(v)},max:Math.max(...margins)*1.3||0.3}}}});
+
+  let h='<table><thead><tr><th>年度</th><th>月份</th><th>產品</th><th>規格</th><th class="num">數量</th><th class="num">銷貨收入</th><th class="num">銷貨成本</th><th class="num">淨利</th><th class="num">淨利率</th></tr></thead><tbody>';
+  filtered.sort((a,b)=>(b['年度']+b['月份']).localeCompare(a['年度']+a['月份'])).forEach(r=>{
+    h+=`<tr><td>${r['年度']}</td><td>${r['月份']}</td><td>${r['產品']}</td><td>${r['規格']}</td><td class="num">${r['數量'].toLocaleString()}</td><td class="num">${NT(r['銷貨收入'])}</td><td class="num">${NT(r['銷貨成本'])}</td><td class="num">${NT(r['淨利'])}</td><td class="num ${pctCls(r['淨利率'])}">${PCT(r['淨利率'])}</td></tr>`;
+  });
+  h+='</tbody></table>';document.getElementById('cust-table').innerHTML=h;
+}
+
+// ===== COST =====
+function refreshCost(){
+  const cust=document.getElementById('fk-cust').value;
+  const fc=cust?C.filter(c=>c['客戶']===cust):C;
+  let totalCost=fc.reduce((s,c)=>s+(c['成本含稅']||0),0);
+  let totalPrice=fc.reduce((s,c)=>s+(c['客戶進價含稅']||0),0);
+  let totalProfit=fc.reduce((s,c)=>s+(c['毛利']||0),0);
+  let avgMargin=totalPrice?totalProfit/totalPrice:0;
+  let h='<table><thead><tr><th>客戶</th><th>商品</th><th class="num">客戶進價(含稅)</th><th class="num">芮溱</th><th class="num">膠囊片</th><th class="num">瓶貼/鋁捲</th><th class="num">彩盒</th><th class="num">成本(含稅)</th><th class="num">毛利</th><th class="num">毛利率</th></tr></thead><tbody>';
+  fc.forEach(c=>{
+    h+=`<tr><td><span class="${custTag(c['客戶'])}">${c['客戶']}</span></td><td>${c['商品']}</td><td class="num">${NT(c['客戶進價含稅'])}</td><td class="num">${NT(c['芮溱'])}</td><td class="num">${NT(c['膠囊片'])}</td><td class="num">${NT(c['瓶貼鋁捲'])}</td><td class="num">${NT(c['彩盒'])}</td><td class="num">${NT(c['成本含稅'])}</td><td class="num">${NT(c['毛利'])}</td><td class="num ${pctCls(c['毛利率'])}">${PCT(c['毛利率'])}</td></tr>`;
+  });
+  h+=`<tr class="total-row"><td colspan="2"><strong>合計</strong></td><td class="num">${NT(totalPrice)}</td><td colspan="4"></td><td class="num cost-red">${NT(totalCost)}</td><td class="num">${NT(totalProfit)}</td><td class="num ${pctCls(avgMargin)}">${PCT(avgMargin)}</td></tr>`;
+  h+='</tbody></table>';document.getElementById('cost-table').innerHTML=h;
+}
+
+// ===== DETAIL =====
+function refreshDetail(){
+  const y=document.getElementById('fd-year').value;const m=document.getElementById('fd-month').value;const c=document.getElementById('fd-cust').value;
+  const q=(document.getElementById('fd-search').value||'').toLowerCase();
+  let filtered=filterConfirmed(y,m,c);
+  if(q)filtered=filtered.filter(r=>(r['產品']+r['規格']).toLowerCase().includes(q));
+  let h='<table><thead><tr><th>年度</th><th>月份</th><th>OEM客戶</th><th>產品</th><th>規格</th><th class="num">數量</th><th class="num">單價(含稅)</th><th class="num">應收貨款</th><th class="num">銷貨收入</th><th class="num">銷貨成本</th><th class="num">淨利</th><th class="num">淨利率</th></tr></thead><tbody>';
+  filtered.sort((a,b)=>(b['年度']+b['月份']).localeCompare(a['年度']+a['月份'])).forEach(r=>{
+    h+=`<tr><td>${r['年度']}</td><td>${r['月份']}</td><td><span class="${custTag(r['OEM客戶'])}">${r['OEM客戶']}</span></td><td>${r['產品']}</td><td>${r['規格']}</td><td class="num">${r['數量'].toLocaleString()}</td><td class="num">${NT(r['單價含稅'])}</td><td class="num">${NT(r['應收貨款'])}</td><td class="num">${NT(r['銷貨收入'])}</td><td class="num">${NT(r['銷貨成本'])}</td><td class="num">${NT(r['淨利'])}</td><td class="num ${pctCls(r['淨利率'])}">${PCT(r['淨利率'])}</td></tr>`;
+  });
+  h+='</tbody></table>';document.getElementById('detail-table').innerHTML=h;
+}
+
+// ===== PIPELINE =====
+function refreshPipeline(){
+  const pRev=PENDING.reduce((s,r)=>s+r['銷貨收入'],0);
+  const pProfit=PENDING.reduce((s,r)=>s+r['淨利'],0);
+  const pMargin=pRev?pProfit/pRev:0;
+  document.getElementById('pkpi-row').innerHTML=`
+    <div class="kpi-card"><div class="kpi-label">預估銷貨收入</div><div class="kpi-value">${NT(pRev)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">預估淨利</div><div class="kpi-value">${NT(pProfit)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">預估淨利率</div><div class="kpi-value">${PENDING.length?PCT(pMargin):'-'}</div></div>
+    <div class="kpi-card"><div class="kpi-label">待出貨筆數</div><div class="kpi-value">${PENDING.length}筆</div></div>`;
+
+  let h='<table><thead><tr><th>年度</th><th>OEM客戶</th><th>產品</th><th>規格</th><th class="num">數量</th><th class="num">單價(含稅)</th><th class="num">預估銷貨收入</th><th class="num">預估淨利</th><th class="num">淨利率</th></tr></thead><tbody>';
+  PENDING.forEach(r=>{
+    h+=`<tr><td>${r['年度']}</td><td><span class="${custTag(r['OEM客戶'])}">${r['OEM客戶']}</span></td><td>${r['產品']}</td><td>${r['規格']}</td><td class="num">${r['數量'].toLocaleString()}</td><td class="num">${NT(r['單價含稅'])}</td><td class="num">${NT(r['銷貨收入'])}</td><td class="num">${NT(r['淨利'])}</td><td class="num ${pctCls(r['淨利率'])}">${PCT(r['淨利率'])}</td></tr>`;
+  });
+  h+='</tbody></table>';document.getElementById('pipeline-table').innerHTML=h;
+}
+
+// ===== NEW PRODUCTS =====
+function refreshNewProd(){
+  const cust=document.getElementById('fnp-cust').value;
+  const status=document.getElementById('fnp-status').value;
+  let filtered=NP;
+  if(cust)filtered=filtered.filter(r=>r['OEM客戶']===cust);
+  if(status)filtered=filtered.filter(r=>r['進度']===status);
+
+  const active=filtered.filter(r=>!r['進度'].includes('完成')).length;
+  const done=filtered.filter(r=>r['進度'].includes('完成')).length;
+
+  document.getElementById('np-kpi').innerHTML=`
+    <div class="kpi-card"><div class="kpi-label">總項目數</div><div class="kpi-value">${filtered.length} 項</div></div>
+    <div class="kpi-card"><div class="kpi-label">進行中</div><div class="kpi-value">${active} 項</div></div>
+    <div class="kpi-card"><div class="kpi-label">已完成</div><div class="kpi-value">${done} 項</div></div>`;
+
+  let h='<table><thead><tr><th>OEM客戶</th><th>產品名稱</th><th>日期</th><th>進度</th><th>備註</th></tr></thead><tbody>';
+  if(filtered.length===0){
+    h+='<tr><td colspan="5" style="text-align:center;color:var(--text2);padding:40px">尚無新品進度資料，請透過 Claude 新增到 oem_data.js</td></tr>';
+  }else{
+    filtered.forEach(r=>{
+      h+=`<tr><td><span class="${custTag(r['OEM客戶'])}">${r['OEM客戶']}</span></td><td>${r['產品名稱']}</td><td>${r['日期']}</td><td><span class="${npStatusTag(r['進度'])}">${r['進度']}</span></td><td>${r['備註']||''}</td></tr>`;
+    });
+  }
+  h+='</tbody></table>';document.getElementById('np-table').innerHTML=h;
+}
+
+// ===== PROCUREMENT =====
+function refreshProcure(){
+  const cust=document.getElementById('fpc-cust').value;
+  const status=document.getElementById('fpc-status').value;
+  let filtered=PC;
+  if(cust)filtered=filtered.filter(r=>r['OEM客戶']===cust);
+  if(status)filtered=filtered.filter(r=>r['進度']===status);
+
+  const active=filtered.filter(r=>!r['進度'].includes('出貨')&&!r['進度'].includes('完成')).length;
+  const done=filtered.filter(r=>r['進度'].includes('出貨')||r['進度'].includes('完成')).length;
+
+  document.getElementById('pc-kpi').innerHTML=`
+    <div class="kpi-card"><div class="kpi-label">總筆數</div><div class="kpi-value">${filtered.length} 筆</div></div>
+    <div class="kpi-card"><div class="kpi-label">進行中</div><div class="kpi-value">${active} 筆</div></div>
+    <div class="kpi-card"><div class="kpi-label">已完成</div><div class="kpi-value">${done} 筆</div></div>`;
+
+  let h='<table><thead><tr><th>OEM客戶</th><th>廠商</th><th>產品</th><th class="num">數量</th><th>下單日期</th><th>預計交期</th><th>進度</th><th>備註</th></tr></thead><tbody>';
+  if(filtered.length===0){
+    h+='<tr><td colspan="8" style="text-align:center;color:var(--text2);padding:40px">尚無採購進度資料，請透過 Claude 新增到 oem_data.js</td></tr>';
+  }else{
+    filtered.forEach(r=>{
+      h+=`<tr><td><span class="${custTag(r['OEM客戶'])}">${r['OEM客戶']}</span></td><td>${r['廠商']}</td><td>${r['產品']}</td><td class="num">${r['數量'].toLocaleString()}</td><td>${r['下單日期']}</td><td>${r['預計交期']}</td><td><span class="${pcStatusTag(r['進度'])}">${r['進度']}</span></td><td>${r['備註']||''}</td></tr>`;
+    });
+  }
+  h+='</tbody></table>';document.getElementById('pc-table').innerHTML=h;
+}
+
+// ===== INIT FILTERS =====
+function initFilters(){
+  // New Products filters
+  const npCusts=[...new Set(NP.map(r=>r['OEM客戶']))].sort();
+  const npStatuses=[...new Set(NP.map(r=>r['進度']))];
+  const fnpCust=document.getElementById('fnp-cust');
+  npCusts.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;fnpCust.appendChild(o);});
+  const fnpStatus=document.getElementById('fnp-status');
+  npStatuses.forEach(s=>{const o=document.createElement('option');o.value=s;o.textContent=s;fnpStatus.appendChild(o);});
+
+  // Procurement filters
+  const pcCusts=[...new Set(PC.map(r=>r['OEM客戶']))].sort();
+  const pcStatuses=[...new Set(PC.map(r=>r['進度']))];
+  const fpcCust=document.getElementById('fpc-cust');
+  pcCusts.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;fpcCust.appendChild(o);});
+  const fpcStatus=document.getElementById('fpc-status');
+  pcStatuses.forEach(s=>{const o=document.createElement('option');o.value=s;o.textContent=s;fpcStatus.appendChild(o);});
+}
+
+// ===== STARTUP =====
+initFilters();
+refreshHome();
+</script>
+</body>
+</html>
