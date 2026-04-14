@@ -245,6 +245,7 @@ tr:hover td{background:#f8fafc}
 <button class="nav-btn" onclick="showPage('customer',this)">客戶分析</button>
 <button class="nav-btn" onclick="showPage('matcost',this)">商品成本</button>
 <button class="nav-btn" onclick="showPage('detail',this)">銷售明細</button>
+<button class="nav-btn" onclick="showPage('sales_iea',this)">銷售明細 IEA <span style="font-size:10px;color:#f59e0b;margin-left:4px">範本</span></button>
 <button class="nav-btn" onclick="showPage('pipeline',this)">待出貨</button>
 </nav>
 
@@ -311,6 +312,23 @@ tr:hover td{background:#f8fafc}
 <input type="text" id="fd-search" class="search-box" placeholder="搜尋產品 / 規格..." oninput="refreshDetail()">
 </div>
 <div class="table-card"><h3>已入帳銷售明細</h3><div class="subtitle">僅顯示已確認月份的訂單</div><div id="detail-table"></div></div>
+</div>
+
+<!-- PAGE: 銷售明細 IEA (範本) -->
+<div id="page-sales_iea" class="page">
+<div class="pipeline-banner" style="background:#fef3c7;border-color:#f59e0b">
+<h3>📋 範本預覽</h3>
+<div class="pipe-val">資料來源：OEM 銷售明細 IEA.xlsx + OEM 黃金甲 銷售明細 IEA.xlsx（原先「銷售明細」不變動）</div>
+</div>
+<div class="filters">
+<span class="filter-label">客戶</span>
+<select id="fsi-cust" class="filter-select" onchange="refreshSalesIEA()"><option value="">全部</option></select>
+<span class="filter-label">業務員</span>
+<select id="fsi-sales" class="filter-select" onchange="refreshSalesIEA()"><option value="">全部</option></select>
+<input type="text" id="fsi-search" class="search-box" placeholder="搜尋產品 / 單號..." oninput="refreshSalesIEA()">
+</div>
+<div class="kpi-row" id="sikpi-row"></div>
+<div class="table-card"><h3>銷售明細 IEA</h3><div id="sales_iea-table"></div></div>
 </div>
 
 <!-- PAGE 5: 待出貨 -->
@@ -441,6 +459,7 @@ const S=RAW.sales;
 const NP=RAW.new_products||[];
 const PC=RAW.procurement||[];
 const INV=RAW.inventory||[];
+const SALES_IEA=RAW.sales_iea||[];
 
 const CONFIRMED=S.filter(r=>r['月份']!=='待確認');
 const PENDING=S.filter(r=>r['月份']==='待確認');
@@ -536,7 +555,7 @@ function showPage(id,btn){
   document.getElementById('page-'+id).classList.add('active');
   document.querySelectorAll('#sec-oem .nav-btn').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
-  if(id==='customer')refreshCustomer();if(id==='matcost')refreshMatCost();if(id==='detail')refreshDetail();if(id==='pipeline')refreshPipeline();
+  if(id==='customer')refreshCustomer();if(id==='matcost')refreshMatCost();if(id==='detail')refreshDetail();if(id==='sales_iea')refreshSalesIEA();if(id==='pipeline')refreshPipeline();
 }
 
 // ===== HOME =====
@@ -652,6 +671,46 @@ function refreshDetail(){
     h+=`<tr><td>${r['年度']}</td><td>${r['月份']}</td><td><span class="${custTag(r['OEM客戶'])}">${r['OEM客戶']}</span></td><td>${r['產品']}</td><td>${r['規格']}</td><td class="num">${r['數量'].toLocaleString()}</td><td class="num">${NT(r['單價含稅'])}</td><td class="num">${NT(r['應收貨款'])}</td><td class="num">${NT(r['銷貨收入'])}</td><td class="num">${NT(r['銷貨成本'])}</td><td class="num">${NT(r['淨利'])}</td><td class="num ${pctCls(r['淨利率'])}">${PCT(r['淨利率'])}</td></tr>`;
   });
   h+='</tbody></table>';document.getElementById('detail-table').innerHTML=h;
+}
+
+// ===== SALES IEA (範本) =====
+let _siInit=false;
+function initSalesIEA(){
+  if(_siInit)return;_siInit=true;
+  const custs=[...new Set(SALES_IEA.map(r=>r['客戶']).filter(Boolean))].sort();
+  const sales=[...new Set(SALES_IEA.map(r=>r['業務員']).filter(Boolean))].sort();
+  const sc=document.getElementById('fsi-cust');custs.forEach(c=>sc.innerHTML+=`<option value="${c}">${c}</option>`);
+  const ss=document.getElementById('fsi-sales');sales.forEach(s=>ss.innerHTML+=`<option value="${s}">${s}</option>`);
+}
+function refreshSalesIEA(){
+  initSalesIEA();
+  const c=document.getElementById('fsi-cust').value;
+  const s=document.getElementById('fsi-sales').value;
+  const q=(document.getElementById('fsi-search').value||'').toLowerCase();
+  let data=SALES_IEA.slice();
+  if(c)data=data.filter(r=>r['客戶']===c);
+  if(s)data=data.filter(r=>r['業務員']===s);
+  if(q)data=data.filter(r=>((r['產品名稱']||'')+(r['單號']||'')+(r['產品代號']||'')).toLowerCase().includes(q));
+
+  const totalAmt=data.reduce((s,r)=>s+(r['合計']||0),0);
+  const totalCost=data.reduce((s,r)=>s+(r['成本小計']||0),0);
+  const totalProfit=data.reduce((s,r)=>s+(r['毛利']||0),0);
+  const margin=totalAmt?totalProfit/totalAmt*100:0;
+  document.getElementById('sikpi-row').innerHTML=`
+    <div class="kpi-card"><div class="kpi-label">銷貨金額</div><div class="kpi-value">${NT(totalAmt)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">銷貨成本</div><div class="kpi-value">${NT(totalCost)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">毛利</div><div class="kpi-value">${NT(totalProfit)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">毛利率</div><div class="kpi-value">${margin.toFixed(2)}%</div></div>
+    <div class="kpi-card"><div class="kpi-label">筆數</div><div class="kpi-value">${data.length}筆</div></div>`;
+
+  let h='<table><thead><tr><th>單號</th><th>發票</th><th>客戶</th><th>產品代號</th><th>產品名稱</th><th>業務員</th><th class="num">數量</th><th class="num">單價</th><th class="num">合計</th><th class="num">成本小計</th><th class="num">毛利</th><th class="num">毛利率</th></tr></thead><tbody>';
+  data.forEach(r=>{
+    const mr=(typeof r['毛利率']==='number')?r['毛利率']:parseFloat(r['毛利率'])||0;
+    const cls=mr>=20?'pos':(mr>=0?'':'neg');
+    h+=`<tr><td>${r['單號']||''}</td><td>${r['發票']||''}</td><td><span class="${custTag(r['客戶'])}">${r['客戶']||''}</span></td><td>${r['產品代號']||''}</td><td>${r['產品名稱']||''}</td><td>${r['業務員']||''}</td><td class="num">${(r['數量']||0).toLocaleString()}</td><td class="num">${NT(r['單價']||0)}</td><td class="num">${NT(r['合計']||0)}</td><td class="num">${NT(r['成本小計']||0)}</td><td class="num">${NT(r['毛利']||0)}</td><td class="num ${cls}">${mr.toFixed(2)}%</td></tr>`;
+  });
+  h+='</tbody></table>';
+  document.getElementById('sales_iea-table').innerHTML=h;
 }
 
 // ===== PIPELINE =====
