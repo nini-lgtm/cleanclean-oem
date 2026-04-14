@@ -65,6 +65,16 @@ tr:hover td{background:#f8fafc}
 .pipeline-banner h3{font-size:14px;font-weight:700;color:#92400e;margin-bottom:8px}
 .pipeline-banner .pipe-val{font-size:13px;color:#78350f}
 .total-row td{font-weight:700;border-top:2px solid var(--border);background:#f8fafc}
+#matcost-table table{table-layout:fixed}
+#matcost-table th,#matcost-table td{text-align:center;padding:10px 6px;font-size:12px}
+#matcost-table th:nth-child(1),#matcost-table td:nth-child(1){width:70px}
+#matcost-table th:nth-child(2),#matcost-table td:nth-child(2){width:220px;text-align:left}
+#matcost-table th:nth-child(3),#matcost-table td:nth-child(3){width:100px}
+#matcost-table th:nth-child(4),#matcost-table td:nth-child(4){width:70px}
+#matcost-table th:nth-child(n+5):nth-child(-n+9),#matcost-table td:nth-child(n+5):nth-child(-n+9){width:70px}
+#matcost-table th:nth-child(10),#matcost-table td:nth-child(10){width:100px}
+#matcost-table th:nth-child(11),#matcost-table td:nth-child(11){width:80px}
+#matcost-table th:nth-child(12),#matcost-table td:nth-child(12){width:75px}
 #sec-bom{max-width:1200px;margin:0 auto}
 #sec-bom .filters{flex-wrap:wrap;gap:8px}
 #sec-bom .kpi-row{gap:8px}
@@ -233,6 +243,7 @@ tr:hover td{background:#f8fafc}
 <nav class="nav">
 <button class="nav-btn active" onclick="showPage('overview',this)">總覽</button>
 <button class="nav-btn" onclick="showPage('customer',this)">客戶分析</button>
+<button class="nav-btn" onclick="showPage('matcost',this)">商品成本</button>
 <button class="nav-btn" onclick="showPage('detail',this)">銷售明細</button>
 <button class="nav-btn" onclick="showPage('pipeline',this)">待出貨</button>
 </nav>
@@ -273,6 +284,19 @@ tr:hover td{background:#f8fafc}
 <div class="chart-card"><h3>各產品淨利率比較</h3><canvas id="cChartMargin"></canvas></div>
 </div>
 <div class="table-card"><h3>訂單明細（已入帳）</h3><div id="cust-table"></div></div>
+</div>
+
+<!-- PAGE: 商品成本 (from BOM) -->
+<div id="page-matcost" class="page">
+<div class="filters">
+<span class="filter-label">客戶</span>
+<select id="fmc-cust" class="filter-select" onchange="refreshMatCost()"><option value="">全部</option><option value="阿清">阿清</option><option value="蹦闆">蹦闆</option><option value="美兆">美兆</option><option value="GA黃金甲">GA黃金甲</option></select>
+</div>
+<div class="table-card">
+<h3>商品成本（依 BOM 物料自動計算）</h3>
+<div class="subtitle">資料來源：OEM產品資料_產品 IK1-3.xlsx ｜物料採購成本 × 1.05 = 含稅成本 ｜ 銷售單價 − 物料成本 = 毛利</div>
+<div id="matcost-table"></div>
+</div>
 </div>
 
 <!-- PAGE 4: 銷售明細 -->
@@ -512,7 +536,7 @@ function showPage(id,btn){
   document.getElementById('page-'+id).classList.add('active');
   document.querySelectorAll('#sec-oem .nav-btn').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
-  if(id==='customer')refreshCustomer();if(id==='detail')refreshDetail();if(id==='pipeline')refreshPipeline();
+  if(id==='customer')refreshCustomer();if(id==='matcost')refreshMatCost();if(id==='detail')refreshDetail();if(id==='pipeline')refreshPipeline();
 }
 
 // ===== HOME =====
@@ -831,6 +855,76 @@ function setBomView(v){
   document.getElementById('bom-view-table').classList.toggle('active',v==='table');
   refreshBom();
 }
+// ===== 商品成本 (by BOM) =====
+function matBucket(name){
+  const n=String(name||'');
+  if(n.includes('內料'))return '內料';
+  if(n.includes('膠囊'))return '膠囊片';
+  if(n.includes('瓶貼')||n.includes('鋁捲')||n.includes('背膜')||n.includes('膠膜'))return '瓶貼鋁捲';
+  if(n.includes('紙盒')||n.includes('紙卡')||n.includes('彩盒'))return '彩盒';
+  return '包材'; // 鋁袋/加工/拆模/蓋子/其他
+}
+function refreshMatCost(){
+  const cust=document.getElementById('fmc-cust').value;
+  const mats=PROD.filter(p=>p['中類']==='物料');
+  // 分群
+  const groups={};
+  mats.forEach(p=>{
+    const code=String(p['產品代號']||'');
+    if(code.includes('-')){
+      const pk=code.split('-')[0];
+      (groups[pk]=groups[pk]||{children:[]}).children.push(p);
+    }else{
+      groups[code]=groups[code]||{children:[]};
+      groups[code].parent=p;
+    }
+  });
+  // 只留有父項 + 有銷售單價 or 有子項的
+  let keys=Object.keys(groups).filter(k=>groups[k].parent&&groups[k].children.length>0);
+  if(cust)keys=keys.filter(k=>groups[k].parent['客戶']===cust);
+  keys.sort();
+
+  let sumPrice=0,sumCost=0,sumProfit=0;
+  let h='<table><thead><tr><th>客戶</th><th>商品</th><th class="num">客戶進價(含稅)</th><th>工廠</th><th class="num">內料</th><th class="num">包材</th><th class="num">膠囊片</th><th class="num">瓶貼/鋁捲</th><th class="num">彩盒</th><th class="num">總成本(含稅)</th><th class="num">毛利</th><th class="num">毛利率</th></tr></thead><tbody>';
+  keys.forEach(k=>{
+    const g=groups[k];
+    const p=g.parent;
+    const price=p['銷售單價']||0;
+    // 依類型累計（× 1.05）
+    const buck={'內料':0,'包材':0,'膠囊片':0,'瓶貼鋁捲':0,'彩盒':0};
+    const vendors=new Set();
+    g.children.forEach(c=>{
+      const b=matBucket(c['產品名稱']);
+      buck[b]+=(c['採購成本']||0)*1.05;
+      if(c['供應商'])vendors.add(c['供應商']);
+    });
+    const totalCost=Object.values(buck).reduce((a,b)=>a+b,0);
+    const profit=price-totalCost;
+    const rate=price?profit/price:0;
+    const factory=p['供應商']||[...vendors][0]||'-';
+    sumPrice+=price;sumCost+=totalCost;sumProfit+=profit;
+    const nameClean=String(p['產品名稱']||'').replace('成品：','');
+    h+=`<tr>
+      <td><span class="${custTag(p['客戶'])}">${p['客戶']||'-'}</span></td>
+      <td>${nameClean}</td>
+      <td class="num">${price?NT(price):'<span style="color:var(--text2)">—</span>'}</td>
+      <td>${factory}</td>
+      <td class="num">${buck['內料']?NT(buck['內料']):'<span style="color:#cbd5e1">0</span>'}</td>
+      <td class="num">${buck['包材']?NT(buck['包材']):'<span style="color:#cbd5e1">0</span>'}</td>
+      <td class="num">${buck['膠囊片']?NT(buck['膠囊片']):'<span style="color:#cbd5e1">0</span>'}</td>
+      <td class="num">${buck['瓶貼鋁捲']?NT(buck['瓶貼鋁捲']):'<span style="color:#cbd5e1">0</span>'}</td>
+      <td class="num">${buck['彩盒']?NT(buck['彩盒']):'<span style="color:#cbd5e1">0</span>'}</td>
+      <td class="num cost-red">${NT(totalCost)}</td>
+      <td class="num">${price?NT(profit):'<span style="color:var(--text2)">—</span>'}</td>
+      <td class="num ${price?pctCls(rate):''}">${price?PCT(rate):'—'}</td>
+    </tr>`;
+  });
+  const avgRate=sumPrice?sumProfit/sumPrice:0;
+  h+=`<tr class="total-row"><td colspan="2"><strong>合計</strong></td><td class="num">${NT(sumPrice)}</td><td colspan="6"></td><td class="num cost-red">${NT(sumCost)}</td><td class="num">${NT(sumProfit)}</td><td class="num ${pctCls(avgRate)}">${PCT(avgRate)}</td></tr>`;
+  h+='</tbody></table>';
+  document.getElementById('matcost-table').innerHTML=h;
+}
+
 function matType(name){
   const n=String(name||'');
   if(n.includes('內料'))return ['內料','tag-mat-nl'];
