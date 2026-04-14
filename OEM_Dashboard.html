@@ -76,12 +76,15 @@ tr:hover td{background:#f8fafc}
 #cost-table th:nth-child(10),#cost-table td:nth-child(10){width:110px}
 #cost-table th:nth-child(11),#cost-table td:nth-child(11){width:85px}
 #cost-table th:nth-child(12),#cost-table td:nth-child(12){width:80px}
-#sec-bom{max-width:900px}
+#sec-bom{max-width:780px}
+#sec-bom .filters{flex-wrap:wrap;gap:8px}
+#sec-bom .kpi-row{gap:8px}
 #sec-bom .kpi-card{padding:10px 12px}
 #sec-bom .kpi-label{font-size:11px}
 #sec-bom .kpi-value{font-size:16px}
 #sec-bom .home-title{font-size:16px;margin-bottom:10px}
-#sec-bom .table-card{padding:12px}
+#sec-bom .table-card{padding:12px;overflow:visible}
+#sec-bom .bom-body td:nth-child(5)::before{content:"未稅 ";color:#cbd5e1;font-size:10px}
 #sec-bom .table-card h3{font-size:13px;margin-bottom:6px}
 #sec-bom .table-card .subtitle{font-size:11px;margin-bottom:10px}
 .bom-card{background:#fff;border:1px solid var(--border);border-radius:6px;margin-bottom:4px;overflow:hidden}
@@ -906,12 +909,12 @@ function refreshBom(){
         const raw=c['採購成本']||0;
         const tax=raw*1.05;
         rows+=`<tr>
-          <td style="width:70px;font-family:monospace;color:var(--text2)">${c['產品代號']}</td>
-          <td style="width:46px"><span class="bom-sub-tag ${cls}">${t}</span></td>
-          <td>${c['產品名稱']}</td>
-          <td style="width:70px;color:var(--text2)">${c['供應商']||'-'}</td>
-          <td class="num" style="width:70px;color:var(--text2)">未稅 ${NT(raw)}</td>
-          <td class="num" style="width:65px;font-weight:600${raw===0?';color:var(--text2)':''}">${NT(tax)}</td>
+          <td style="width:64px;font-family:monospace;color:var(--text2)">${c['產品代號']}</td>
+          <td style="width:42px"><span class="bom-sub-tag ${cls}">${t}</span></td>
+          <td style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px">${c['產品名稱']}</td>
+          <td style="width:58px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c['供應商']||'-'}</td>
+          <td class="num" style="width:58px;color:var(--text2)">${NT(raw)}</td>
+          <td class="num" style="width:58px;font-weight:600${raw===0?';color:var(--text2)':''}">${NT(tax)}</td>
         </tr>`;
       });
       rows+='</tbody></table>';
