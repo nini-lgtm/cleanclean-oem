@@ -198,7 +198,7 @@ tr:hover td{background:#f8fafc}
 <span class="filter-label">月份</span>
 <select id="f-month" class="filter-select" onchange="refresh()"><option value="">全部</option><option value="01月">01月</option><option value="02月">02月</option><option value="03月">03月</option><option value="04月">04月</option><option value="05月">05月</option><option value="06月">06月</option><option value="07月">07月</option><option value="08月">08月</option><option value="09月">09月</option><option value="10月">10月</option><option value="11月">11月</option><option value="12月">12月</option></select>
 <span class="filter-label">客戶</span>
-<select id="f-cust" class="filter-select" onchange="refresh()"><option value="">全部</option><option value="阿清">阿清</option><option value="蹦闆">蹦闆</option><option value="美兆">美兆</option></select>
+<select id="f-cust" class="filter-select" onchange="refresh()"><option value="">全部</option><option value="阿清">阿清</option><option value="蹦闆">蹦闆</option><option value="美兆">美兆</option><option value="GA黃金甲">GA黃金甲</option></select>
 </div>
 <div id="pipeline-summary"></div>
 <div class="kpi-row" id="kpi-row"></div>
@@ -213,7 +213,7 @@ tr:hover td{background:#f8fafc}
 <div id="page-customer" class="page">
 <div class="filters">
 <span class="filter-label">客戶</span>
-<select id="fc-cust" class="filter-select" onchange="refreshCustomer()"><option value="">全部</option><option value="阿清">阿清</option><option value="蹦闆">蹦闆</option><option value="美兆">美兆</option></select>
+<select id="fc-cust" class="filter-select" onchange="refreshCustomer()"><option value="">全部</option><option value="阿清">阿清</option><option value="蹦闆">蹦闆</option><option value="美兆">美兆</option><option value="GA黃金甲">GA黃金甲</option></select>
 <span class="filter-label">年度</span>
 <select id="fc-year" class="filter-select" onchange="refreshCustomer()"><option value="">全部</option><option value="2023年">2023年</option><option value="2024年">2024年</option><option value="2025年">2025年</option><option value="2026年" selected>2026年</option></select>
 <span class="filter-label">月份</span>
@@ -245,7 +245,7 @@ tr:hover td{background:#f8fafc}
 <span class="filter-label">月份</span>
 <select id="fd-month" class="filter-select" onchange="refreshDetail()"><option value="">全部</option><option value="01月">01月</option><option value="02月">02月</option><option value="03月">03月</option><option value="04月">04月</option><option value="05月">05月</option><option value="06月">06月</option><option value="07月">07月</option><option value="08月">08月</option><option value="09月">09月</option><option value="10月">10月</option><option value="11月">11月</option><option value="12月">12月</option></select>
 <span class="filter-label">客戶</span>
-<select id="fd-cust" class="filter-select" onchange="refreshDetail()"><option value="">全部</option><option value="阿清">阿清</option><option value="蹦闆">蹦闆</option><option value="美兆">美兆</option></select>
+<select id="fd-cust" class="filter-select" onchange="refreshDetail()"><option value="">全部</option><option value="阿清">阿清</option><option value="蹦闆">蹦闆</option><option value="美兆">美兆</option><option value="GA黃金甲">GA黃金甲</option></select>
 <input type="text" id="fd-search" class="search-box" placeholder="搜尋產品 / 規格..." oninput="refreshDetail()">
 </div>
 <div class="table-card"><h3>已入帳銷售明細</h3><div class="subtitle">僅顯示已確認月份的訂單</div><div id="detail-table"></div></div>
@@ -310,7 +310,7 @@ tr:hover td{background:#f8fafc}
 <div class="modal-overlay" id="modal-np" onclick="if(event.target===this)closeModal('np')">
 <div class="modal">
 <h3>新增新品進度</h3>
-<div class="modal-field"><label>OEM 客戶</label><select id="np-f-cust"><option value="阿清">阿清</option><option value="蹦闆">蹦闆</option><option value="美兆">美兆</option></select></div>
+<div class="modal-field"><label>OEM 客戶</label><select id="np-f-cust"><option value="阿清">阿清</option><option value="蹦闆">蹦闆</option><option value="美兆">美兆</option><option value="GA黃金甲">GA黃金甲</option></select></div>
 <div class="modal-field"><label>產品名稱</label><input id="np-f-name" placeholder="例：益生菌"></div>
 <div class="modal-field"><label>日期</label><input id="np-f-date" type="date"></div>
 <div class="modal-field"><label>進度</label><select id="np-f-status"><option>樣品測試中</option><option>包裝設計中</option><option>印刷中</option><option>充填中</option><option>已完成</option></select></div>
@@ -323,7 +323,7 @@ tr:hover td{background:#f8fafc}
 <div class="modal-overlay" id="modal-pc" onclick="if(event.target===this)closeModal('pc')">
 <div class="modal">
 <h3>新增採購進度</h3>
-<div class="modal-field"><label>OEM 客戶</label><select id="pc-f-cust"><option value="阿清">阿清</option><option value="蹦闆">蹦闆</option><option value="美兆">美兆</option></select></div>
+<div class="modal-field"><label>OEM 客戶</label><select id="pc-f-cust"><option value="阿清">阿清</option><option value="蹦闆">蹦闆</option><option value="美兆">美兆</option><option value="GA黃金甲">GA黃金甲</option></select></div>
 <div class="modal-field"><label>廠商</label><input id="pc-f-vendor" placeholder="例：芮溱"></div>
 <div class="modal-field"><label>產品</label><input id="pc-f-prod" placeholder="例：挪威魚油"></div>
 <div class="modal-field"><label>數量</label><input id="pc-f-qty" type="number" placeholder="例：20000"></div>
