@@ -76,18 +76,26 @@ tr:hover td{background:#f8fafc}
 #cost-table th:nth-child(10),#cost-table td:nth-child(10){width:110px}
 #cost-table th:nth-child(11),#cost-table td:nth-child(11){width:85px}
 #cost-table th:nth-child(12),#cost-table td:nth-child(12){width:80px}
-.bom-card{background:#fff;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;overflow:hidden}
-.bom-head{display:flex;align-items:center;gap:10px;padding:8px 14px;background:#f8fafc;border-bottom:1px solid #f1f5f9;cursor:pointer;font-size:13px}
+#sec-bom{max-width:900px}
+#sec-bom .kpi-card{padding:10px 12px}
+#sec-bom .kpi-label{font-size:11px}
+#sec-bom .kpi-value{font-size:16px}
+#sec-bom .home-title{font-size:16px;margin-bottom:10px}
+#sec-bom .table-card{padding:12px}
+#sec-bom .table-card h3{font-size:13px;margin-bottom:6px}
+#sec-bom .table-card .subtitle{font-size:11px;margin-bottom:10px}
+.bom-card{background:#fff;border:1px solid var(--border);border-radius:6px;margin-bottom:4px;overflow:hidden}
+.bom-head{display:flex;align-items:center;gap:8px;padding:6px 10px;background:#f8fafc;border-bottom:1px solid #f1f5f9;cursor:pointer;font-size:12px}
 .bom-head:hover{background:#eff6ff}
-.bom-code{font-family:monospace;font-size:12px;font-weight:700;color:var(--blue);min-width:64px}
-.bom-name{flex:1;font-weight:600;color:var(--text);font-size:13px}
-.bom-total{font-size:13px;font-weight:700;color:var(--red);min-width:70px;text-align:right}
+.bom-code{font-family:monospace;font-size:11px;font-weight:700;color:var(--blue);min-width:54px}
+.bom-name{flex:1;font-weight:600;color:var(--text);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bom-total{font-size:12px;font-weight:700;color:var(--red);min-width:60px;text-align:right}
 .bom-total.zero{color:var(--text2);font-weight:500}
 .bom-body{padding:0}
-.bom-body table{margin:0;font-size:12px}
-.bom-body td{padding:4px 14px;border-bottom:1px solid #f8fafc}
+.bom-body table{margin:0;font-size:11px}
+.bom-body td{padding:3px 10px;border-bottom:1px solid #f8fafc}
 .bom-body tr:last-child td{border-bottom:none}
-.bom-sub-tag{display:inline-block;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600;min-width:40px;text-align:center}
+.bom-sub-tag{display:inline-block;padding:1px 5px;border-radius:3px;font-size:10px;font-weight:600;min-width:36px;text-align:center}
 .tag-mat-nl{background:#dbeafe;color:#1d4ed8}  /* 內料 */
 .tag-mat-pt{background:#fed7aa;color:#c2410c}  /* 瓶貼 */
 .tag-mat-box{background:#dcfce7;color:#15803d} /* 紙盒/彩盒 */
@@ -898,12 +906,12 @@ function refreshBom(){
         const raw=c['採購成本']||0;
         const tax=raw*1.05;
         rows+=`<tr>
-          <td style="width:80px;font-family:monospace;color:var(--text2)">${c['產品代號']}</td>
-          <td style="width:54px"><span class="bom-sub-tag ${cls}">${t}</span></td>
+          <td style="width:70px;font-family:monospace;color:var(--text2)">${c['產品代號']}</td>
+          <td style="width:46px"><span class="bom-sub-tag ${cls}">${t}</span></td>
           <td>${c['產品名稱']}</td>
-          <td style="width:90px;color:var(--text2)">${c['供應商']||'-'}</td>
-          <td class="num" style="width:80px;color:var(--text2)">未稅 ${NT(raw)}</td>
-          <td class="num" style="width:80px;font-weight:600${raw===0?';color:var(--text2)':''}">${NT(tax)}</td>
+          <td style="width:70px;color:var(--text2)">${c['供應商']||'-'}</td>
+          <td class="num" style="width:70px;color:var(--text2)">未稅 ${NT(raw)}</td>
+          <td class="num" style="width:65px;font-weight:600${raw===0?';color:var(--text2)':''}">${NT(tax)}</td>
         </tr>`;
       });
       rows+='</tbody></table>';
@@ -912,8 +920,8 @@ function refreshBom(){
       <div class="bom-head" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">
         <div class="bom-code">${k}</div>
         <div class="bom-name">${nameLabel}</div>
-        <span class="${custTag(custLabel)}" style="font-size:10px">${custLabel||'-'}</span>
-        <div style="font-size:11px;color:var(--text2);min-width:60px;text-align:right">${kids.length} 項</div>
+        <span class="${custTag(custLabel)}" style="font-size:10px;padding:1px 6px">${custLabel||'-'}</span>
+        <div style="font-size:10px;color:var(--text2);min-width:40px;text-align:right">${kids.length}項</div>
         <div class="bom-total${zero}">${NT(sumTax)}</div>
       </div>
       <div class="bom-body">${rows}</div>
