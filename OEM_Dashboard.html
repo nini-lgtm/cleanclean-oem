@@ -76,6 +76,25 @@ tr:hover td{background:#f8fafc}
 #cost-table th:nth-child(10),#cost-table td:nth-child(10){width:110px}
 #cost-table th:nth-child(11),#cost-table td:nth-child(11){width:85px}
 #cost-table th:nth-child(12),#cost-table td:nth-child(12){width:80px}
+.bom-card{background:#fff;border:1px solid var(--border);border-radius:10px;margin-bottom:12px;overflow:hidden}
+.bom-head{display:flex;align-items:center;gap:12px;padding:14px 18px;background:linear-gradient(90deg,#f0f9ff,#fff);border-bottom:1px solid var(--border);cursor:pointer}
+.bom-head:hover{background:linear-gradient(90deg,#e0f2fe,#f8fafc)}
+.bom-code{font-family:monospace;font-size:14px;font-weight:700;color:var(--blue);min-width:80px}
+.bom-name{flex:1;font-weight:600;color:var(--text)}
+.bom-total{font-size:15px;font-weight:700;color:var(--red)}
+.bom-total.zero{color:var(--text2);font-weight:500}
+.bom-body{padding:0}
+.bom-body table{margin:0}
+.bom-body td{padding:8px 18px}
+.bom-sub-tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;min-width:48px;text-align:center}
+.tag-mat-nl{background:#dbeafe;color:#1d4ed8}  /* 內料 */
+.tag-mat-pt{background:#fed7aa;color:#c2410c}  /* 瓶貼 */
+.tag-mat-box{background:#dcfce7;color:#15803d} /* 紙盒/彩盒 */
+.tag-mat-film{background:#fef3c7;color:#a16207}/* 鋁捲/背膜 */
+.tag-mat-cap{background:#e9d5ff;color:#7c3aed} /* 膠囊/蓋 */
+.tag-mat-bag{background:#fce7f3;color:#be185d} /* 鋁袋 */
+.tag-mat-other{background:#f1f5f9;color:#475569}
+.bom-empty{padding:16px 18px;color:var(--text2);font-size:13px;text-align:center}
 
 /* === HOME PAGE === */
 .home-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:20px;margin-bottom:32px}
@@ -147,6 +166,7 @@ tr:hover td{background:#f8fafc}
 <button class="top-nav-btn" onclick="showSection('inventory',this)">OEM 庫存</button>
 <button class="top-nav-btn" onclick="showSection('newprod',this)">新品進度</button>
 <button class="top-nav-btn" onclick="showSection('procure',this)">採購進度</button>
+<button class="top-nav-btn" onclick="showSection('bom',this)">物料 BOM</button>
 </nav>
 
 <!-- ==================== SECTION: 首頁 ==================== -->
@@ -319,6 +339,22 @@ tr:hover td{background:#f8fafc}
 
 </div>
 
+<!-- ==================== SECTION: 物料 BOM ==================== -->
+<div id="sec-bom" class="section">
+<div class="home-title">物料 BOM（成本組成）</div>
+<div class="filters">
+<span class="filter-label">客戶</span>
+<select id="fbom-cust" class="filter-select" onchange="refreshBom()"><option value="">全部</option><option value="阿清">阿清</option><option value="蹦闆">蹦闆</option><option value="美兆">美兆</option><option value="GA黃金甲">GA黃金甲</option></select>
+<input id="fbom-search" class="search-box" placeholder="搜尋產品或代號" oninput="refreshBom()">
+</div>
+<div class="kpi-row" id="bom-kpi"></div>
+<div class="table-card">
+<h3>物料成本結構</h3>
+<div class="subtitle">資料來源：OEM產品資料_產品 IK1-3.xlsx（每日 18:00 自動同步）｜單價已加 5% 稅（× 1.05 = 含稅價）</div>
+<div id="bom-list"></div>
+</div>
+</div>
+
 <!-- MODAL: 新增新品 -->
 <div class="modal-overlay" id="modal-np" onclick="if(event.target===this)closeModal('np')">
 <div class="modal">
@@ -447,6 +483,7 @@ function showSection(id,btn){
   if(id==='inventory')refreshInventory();
   if(id==='newprod')refreshNewProd();
   if(id==='procure')refreshProcure();
+  if(id==='bom')refreshBom();
 }
 
 function showPage(id,btn){
@@ -778,6 +815,110 @@ function refreshPriceCompare(){
     });
   }
   h+='</tbody></table>';document.getElementById('pp-table').innerHTML=h;
+}
+
+// ===== BOM =====
+const PROD=RAW.products||[];
+function matType(name){
+  const n=String(name||'');
+  if(n.includes('內料'))return ['內料','tag-mat-nl'];
+  if(n.includes('瓶貼'))return ['瓶貼','tag-mat-pt'];
+  if(n.includes('紙盒')||n.includes('紙卡')||n.includes('彩盒'))return ['紙盒','tag-mat-box'];
+  if(n.includes('鋁捲')||n.includes('背膜'))return ['鋁捲','tag-mat-film'];
+  if(n.includes('膠囊')||n.includes('蓋'))return ['膠囊','tag-mat-cap'];
+  if(n.includes('鋁袋'))return ['鋁袋','tag-mat-bag'];
+  if(n.includes('膠膜'))return ['膠膜','tag-mat-film'];
+  if(n.includes('加工')||n.includes('拆模'))return ['加工','tag-mat-other'];
+  return ['其他','tag-mat-other'];
+}
+function refreshBom(){
+  const cust=document.getElementById('fbom-cust').value;
+  const q=(document.getElementById('fbom-search').value||'').toLowerCase();
+  let src=PROD.filter(p=>p['中類']==='物料');
+  if(cust)src=src.filter(p=>p['客戶']===cust);
+
+  // 分群：父代號（不含 '-'）vs 子代號（含 '-'）
+  const parents={};
+  const orphans=[];
+  src.forEach(p=>{
+    const code=String(p['產品代號']||'');
+    if(code.includes('-')){
+      const pk=code.split('-')[0];
+      (parents[pk]=parents[pk]||{children:[]}).children.push(p);
+    }else{
+      parents[code]=parents[code]||{children:[]};
+      parents[code].parent=p;
+    }
+  });
+
+  // 搜尋過濾
+  let keys=Object.keys(parents);
+  if(q){
+    keys=keys.filter(k=>{
+      const p=parents[k].parent;
+      const inP=p&&((p['產品名稱']||'')+p['產品代號']).toLowerCase().includes(q);
+      const inC=parents[k].children.some(c=>((c['產品名稱']||'')+c['產品代號']).toLowerCase().includes(q));
+      return inP||inC||k.toLowerCase().includes(q);
+    });
+  }
+  keys.sort();
+
+  // KPI
+  let totalSku=keys.length;
+  let totalMat=0, withCost=0;
+  keys.forEach(k=>{
+    const sum=parents[k].children.reduce((s,c)=>s+((c['採購成本']||0)*1.05),0);
+    totalMat+=sum;
+    if(sum>0)withCost++;
+  });
+  document.getElementById('bom-kpi').innerHTML=`
+    <div class="kpi-card"><div class="kpi-label">產品群組</div><div class="kpi-value">${totalSku} 組</div></div>
+    <div class="kpi-card"><div class="kpi-label">已建立成本</div><div class="kpi-value">${withCost} 組</div></div>
+    <div class="kpi-card"><div class="kpi-label">待補齊成本</div><div class="kpi-value">${totalSku-withCost} 組</div></div>
+    <div class="kpi-card"><div class="kpi-label">物料總成本(含稅)</div><div class="kpi-value">${NT(totalMat)}</div></div>`;
+
+  let h='';
+  if(keys.length===0){h='<div class="bom-empty">查無資料</div>';}
+  keys.forEach(k=>{
+    const g=parents[k];
+    const p=g.parent;
+    const kids=g.children.slice().sort((a,b)=>String(a['產品代號']).localeCompare(String(b['產品代號'])));
+    const sumTax=kids.reduce((s,c)=>s+((c['採購成本']||0)*1.05),0);
+    const zero=sumTax===0?' zero':'';
+    const custLabel=p?p['客戶']:(kids[0]&&kids[0]['客戶']||'');
+    const nameLabel=p?p['產品名稱']:'(無父項)';
+    let rows='';
+    if(kids.length===0){
+      rows='<div class="bom-empty">此群組無子項物料</div>';
+    }else{
+      rows='<table><tbody>';
+      kids.forEach(c=>{
+        const [t,cls]=matType(c['產品名稱']);
+        const raw=c['採購成本']||0;
+        const tax=raw*1.05;
+        rows+=`<tr>
+          <td style="width:100px;font-family:monospace;color:var(--text2)">${c['產品代號']}</td>
+          <td style="width:70px"><span class="bom-sub-tag ${cls}">${t}</span></td>
+          <td>${c['產品名稱']}</td>
+          <td style="width:110px;font-size:12px;color:var(--text2)">${c['供應商']||'-'}</td>
+          <td class="num" style="width:90px;color:var(--text2);font-size:12px">未稅 ${NT(raw)}</td>
+          <td class="num" style="width:100px;font-weight:600${raw===0?';color:var(--text2)':''}">${NT(tax)}</td>
+        </tr>`;
+      });
+      rows+='</tbody></table>';
+    }
+    h+=`<div class="bom-card">
+      <div class="bom-head" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">
+        <div class="bom-code">${k}</div>
+        <div class="bom-name">${nameLabel}</div>
+        <span class="${custTag(custLabel)}">${custLabel||'-'}</span>
+        <div style="font-size:12px;color:var(--text2)">${kids.length} 項物料</div>
+        <div class="bom-total${zero}">${NT(sumTax)}</div>
+      </div>
+      <div class="bom-body">${rows}</div>
+    </div>`;
+  });
+  document.getElementById('bom-list').innerHTML=h;
 }
 
 // ===== INIT FILTERS =====
