@@ -99,6 +99,13 @@ tr:hover td{background:#f8fafc}
 .bom-body td{padding:3px 10px;border-bottom:1px solid #f8fafc}
 .bom-body tr:last-child td{border-bottom:none}
 .bom-sub-tag{display:inline-block;padding:1px 5px;border-radius:3px;font-size:10px;font-weight:600;min-width:36px;text-align:center}
+.bom-view-btn{background:transparent;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;color:var(--text2);font-weight:500;transition:all .15s}
+.bom-view-btn.active{background:#fff;color:var(--blue);font-weight:700;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.bom-view-btn:hover:not(.active){color:var(--text)}
+.bom-flat-table th{background:#f8fafc;padding:8px 10px;text-align:left;font-size:12px;border-bottom:2px solid var(--border);white-space:nowrap}
+.bom-flat-table td{padding:6px 10px;font-size:12px;border-bottom:1px solid #f1f5f9}
+.bom-flat-table tr.parent-row td{background:#eff6ff;font-weight:600}
+.bom-flat-table tr.parent-row td:first-child{color:var(--blue);font-family:monospace}
 .tag-mat-nl{background:#dbeafe;color:#1d4ed8}  /* 內料 */
 .tag-mat-pt{background:#fed7aa;color:#c2410c}  /* 瓶貼 */
 .tag-mat-box{background:#dcfce7;color:#15803d} /* 紙盒/彩盒 */
@@ -358,6 +365,10 @@ tr:hover td{background:#f8fafc}
 <span class="filter-label">客戶</span>
 <select id="fbom-cust" class="filter-select" onchange="refreshBom()"><option value="">全部</option><option value="阿清">阿清</option><option value="蹦闆">蹦闆</option><option value="美兆">美兆</option><option value="GA黃金甲">GA黃金甲</option></select>
 <input id="fbom-search" class="search-box" placeholder="搜尋產品或代號" oninput="refreshBom()">
+<div style="margin-left:auto;display:flex;gap:4px;background:#f1f5f9;padding:3px;border-radius:8px">
+  <button id="bom-view-card" class="bom-view-btn active" onclick="setBomView('card')">📋 卡片</button>
+  <button id="bom-view-table" class="bom-view-btn" onclick="setBomView('table')">📊 表格</button>
+</div>
 </div>
 <div class="kpi-row" id="bom-kpi"></div>
 <div class="table-card">
@@ -831,6 +842,13 @@ function refreshPriceCompare(){
 
 // ===== BOM =====
 const PROD=RAW.products||[];
+let bomView='card';
+function setBomView(v){
+  bomView=v;
+  document.getElementById('bom-view-card').classList.toggle('active',v==='card');
+  document.getElementById('bom-view-table').classList.toggle('active',v==='table');
+  refreshBom();
+}
 function matType(name){
   const n=String(name||'');
   if(n.includes('內料'))return ['內料','tag-mat-nl'];
@@ -890,7 +908,32 @@ function refreshBom(){
     <div class="kpi-card"><div class="kpi-label">物料總成本(含稅)</div><div class="kpi-value">${NT(totalMat)}</div></div>`;
 
   let h='';
-  if(keys.length===0){h='<div class="bom-empty">查無資料</div>';}
+  if(keys.length===0){h='<div class="bom-empty">查無資料</div>';document.getElementById('bom-list').innerHTML=h;return;}
+
+  // === 表格模式 ===
+  if(bomView==='table'){
+    let th='<table class="bom-flat-table"><thead><tr><th>代號</th><th>類型</th><th>產品名稱</th><th>客戶</th><th>供應商</th><th class="num">未稅</th><th class="num">含稅(×1.05)</th></tr></thead><tbody>';
+    keys.forEach(k=>{
+      const g=parents[k];
+      const p=g.parent;
+      const kids=g.children.slice().sort((a,b)=>String(a['產品代號']).localeCompare(String(b['產品代號'])));
+      const sumTax=kids.reduce((s,c)=>s+((c['採購成本']||0)*1.05),0);
+      const custLabel=p?p['客戶']:(kids[0]&&kids[0]['客戶']||'');
+      const nameLabel=p?p['產品名稱']:'(無父項)';
+      th+=`<tr class="parent-row"><td>${k}</td><td></td><td>${nameLabel}</td><td><span class="${custTag(custLabel)}" style="font-size:10px">${custLabel||'-'}</span></td><td colspan="2" style="color:var(--text2);font-size:11px">共 ${kids.length} 項物料</td><td class="num" style="color:${sumTax===0?'var(--text2)':'var(--red)'};font-weight:700">${NT(sumTax)}</td></tr>`;
+      kids.forEach(c=>{
+        const [t,cls]=matType(c['產品名稱']);
+        const raw=c['採購成本']||0;
+        const tax=raw*1.05;
+        th+=`<tr><td style="font-family:monospace;color:var(--text2)">${c['產品代號']}</td><td><span class="bom-sub-tag ${cls}">${t}</span></td><td>${c['產品名稱']}</td><td></td><td style="color:var(--text2)">${c['供應商']||'-'}</td><td class="num" style="color:var(--text2)">${NT(raw)}</td><td class="num" style="font-weight:600${raw===0?';color:var(--text2)':''}">${NT(tax)}</td></tr>`;
+      });
+    });
+    th+='</tbody></table>';
+    document.getElementById('bom-list').innerHTML=th;
+    return;
+  }
+
+  // === 卡片模式 ===
   keys.forEach(k=>{
     const g=parents[k];
     const p=g.parent;
