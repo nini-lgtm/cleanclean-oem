@@ -65,17 +65,6 @@ tr:hover td{background:#f8fafc}
 .pipeline-banner h3{font-size:14px;font-weight:700;color:#92400e;margin-bottom:8px}
 .pipeline-banner .pipe-val{font-size:13px;color:#78350f}
 .total-row td{font-weight:700;border-top:2px solid var(--border);background:#f8fafc}
-#cost-table table{table-layout:fixed}
-#cost-table th,#cost-table td{text-align:center;padding:10px 6px}
-#cost-table th.num,#cost-table td.num{text-align:center}
-#cost-table th:nth-child(1),#cost-table td:nth-child(1){width:70px}
-#cost-table th:nth-child(2),#cost-table td:nth-child(2){width:230px;text-align:left}
-#cost-table th:nth-child(3),#cost-table td:nth-child(3){width:110px}
-#cost-table th:nth-child(4),#cost-table td:nth-child(4){width:70px}
-#cost-table th:nth-child(n+5):nth-child(-n+9),#cost-table td:nth-child(n+5):nth-child(-n+9){width:75px}
-#cost-table th:nth-child(10),#cost-table td:nth-child(10){width:110px}
-#cost-table th:nth-child(11),#cost-table td:nth-child(11){width:85px}
-#cost-table th:nth-child(12),#cost-table td:nth-child(12){width:80px}
 #sec-bom{max-width:1200px;margin:0 auto}
 #sec-bom .filters{flex-wrap:wrap;gap:8px}
 #sec-bom .kpi-row{gap:8px}
@@ -244,7 +233,6 @@ tr:hover td{background:#f8fafc}
 <nav class="nav">
 <button class="nav-btn active" onclick="showPage('overview',this)">總覽</button>
 <button class="nav-btn" onclick="showPage('customer',this)">客戶分析</button>
-<button class="nav-btn" onclick="showPage('cost',this)">成本分析</button>
 <button class="nav-btn" onclick="showPage('detail',this)">銷售明細</button>
 <button class="nav-btn" onclick="showPage('pipeline',this)">待出貨</button>
 </nav>
@@ -285,15 +273,6 @@ tr:hover td{background:#f8fafc}
 <div class="chart-card"><h3>各產品淨利率比較</h3><canvas id="cChartMargin"></canvas></div>
 </div>
 <div class="table-card"><h3>訂單明細（已入帳）</h3><div id="cust-table"></div></div>
-</div>
-
-<!-- PAGE 3: 成本分析 -->
-<div id="page-cost" class="page">
-<div class="filters">
-<span class="filter-label">客戶</span>
-<select id="fk-cust" class="filter-select" onchange="refreshCost()"><option value="">全部</option><option value="阿清">阿清</option><option value="蹦闆">蹦闆</option><option value="美兆">美兆</option><option value="GA黃金甲">GA黃金甲</option></select>
-</div>
-<div class="table-card"><h3>成本明細與毛利分析</h3><div id="cost-table"></div></div>
 </div>
 
 <!-- PAGE 4: 銷售明細 -->
@@ -435,7 +414,6 @@ Chart.register(ChartDataLabels);
 Chart.defaults.set('plugins.datalabels', {display: false});
 
 const S=RAW.sales;
-const C=RAW.costs;
 const NP=RAW.new_products||[];
 const PC=RAW.procurement||[];
 const INV=RAW.inventory||[];
@@ -534,7 +512,7 @@ function showPage(id,btn){
   document.getElementById('page-'+id).classList.add('active');
   document.querySelectorAll('#sec-oem .nav-btn').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
-  if(id==='customer')refreshCustomer();if(id==='cost')refreshCost();if(id==='detail')refreshDetail();if(id==='pipeline')refreshPipeline();
+  if(id==='customer')refreshCustomer();if(id==='detail')refreshDetail();if(id==='pipeline')refreshPipeline();
 }
 
 // ===== HOME =====
@@ -637,22 +615,6 @@ function refreshCustomer(){
     h+=`<tr><td>${r['年度']}</td><td>${r['月份']}</td><td>${r['產品']}</td><td>${r['規格']}</td><td class="num">${r['數量'].toLocaleString()}</td><td class="num">${NT(r['銷貨收入'])}</td><td class="num">${NT(r['銷貨成本'])}</td><td class="num">${NT(r['淨利'])}</td><td class="num ${pctCls(r['淨利率'])}">${PCT(r['淨利率'])}</td></tr>`;
   });
   h+='</tbody></table>';document.getElementById('cust-table').innerHTML=h;
-}
-
-// ===== COST =====
-function refreshCost(){
-  const cust=document.getElementById('fk-cust').value;
-  const fc=cust?C.filter(c=>c['客戶']===cust):C;
-  let totalCost=fc.reduce((s,c)=>s+(c['成本含稅']||0),0);
-  let totalPrice=fc.reduce((s,c)=>s+(c['客戶進價含稅']||0),0);
-  let totalProfit=fc.reduce((s,c)=>s+(c['毛利']||0),0);
-  let avgMargin=totalPrice?totalProfit/totalPrice:0;
-  let h='<table><thead><tr><th>客戶</th><th>商品</th><th class="num">客戶進價(含稅)</th><th>工廠</th><th class="num">內料</th><th class="num">包材</th><th class="num">膠囊片</th><th class="num">瓶貼/鋁捲</th><th class="num">彩盒</th><th class="num">總成本(含稅)</th><th class="num">毛利</th><th class="num">毛利率</th></tr></thead><tbody>';
-  fc.forEach(c=>{
-    h+=`<tr><td><span class="${custTag(c['客戶'])}">${c['客戶']}</span></td><td>${c['商品']}</td><td class="num">${NT(c['客戶進價含稅'])}</td><td>${c['工廠']||''}</td><td class="num">${NT(c['內料'])}</td><td class="num">${NT(c['包材'])}</td><td class="num">${NT(c['膠囊片'])}</td><td class="num">${NT(c['瓶貼鋁捲'])}</td><td class="num">${NT(c['彩盒'])}</td><td class="num cost-red">${NT(c['成本含稅'])}</td><td class="num">${NT(c['毛利'])}</td><td class="num ${pctCls(c['毛利率'])}">${PCT(c['毛利率'])}</td></tr>`;
-  });
-  h+=`<tr class="total-row"><td colspan="2"><strong>合計</strong></td><td class="num">${NT(totalPrice)}</td><td colspan="6"></td><td class="num cost-red">${NT(totalCost)}</td><td class="num">${NT(totalProfit)}</td><td class="num ${pctCls(avgMargin)}">${PCT(avgMargin)}</td></tr>`;
-  h+='</tbody></table>';document.getElementById('cost-table').innerHTML=h;
 }
 
 // ===== DETAIL =====
