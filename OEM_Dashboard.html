@@ -302,6 +302,19 @@ tr:hover td{background:#f8fafc}
 </div>
 <div class="kpi-row" id="pc-kpi"></div>
 <div class="table-card"><h3>採購進度追蹤</h3><div class="subtitle">資料來源：Google Drive 採購明細（每日 18:00 自動同步）｜預設只顯示未收齊的採購</div><div id="pc-table"></div></div>
+
+<div class="table-card">
+  <h3>採購價格比對</h3>
+  <div class="subtitle">依產品列出歷次叫貨單價，標示與上一次的價差，方便下單前快速比價</div>
+  <div class="filters" style="margin-bottom:12px">
+    <span class="filter-label">客戶</span>
+    <select id="fpp-cust" class="filter-select" onchange="refreshPriceCompare()"><option value="">全部</option><option value="阿清">阿清</option><option value="蹦闆">蹦闆</option><option value="美兆">美兆</option><option value="GA黃金甲">GA黃金甲</option></select>
+    <span class="filter-label">僅顯示有變動</span>
+    <select id="fpp-changed" class="filter-select" onchange="refreshPriceCompare()"><option value="">全部產品</option><option value="1">只看價格有變動</option><option value="2">只看多次叫貨</option></select>
+    <input id="fpp-search" class="search-box" placeholder="搜尋產品" oninput="refreshPriceCompare()">
+  </div>
+  <div id="pp-table"></div>
+</div>
 </div>
 
 </div>
@@ -697,6 +710,74 @@ function refreshProcure(){
     });
   }
   h+='</tbody></table>';document.getElementById('pc-table').innerHTML=h;
+  refreshPriceCompare();
+}
+
+// ===== PRICE COMPARE =====
+function refreshPriceCompare(){
+  const cust=document.getElementById('fpp-cust').value;
+  const mode=document.getElementById('fpp-changed').value;
+  const q=(document.getElementById('fpp-search').value||'').toLowerCase();
+  let src=PC.filter(r=>(r['單價']||0)>0);
+  if(cust)src=src.filter(r=>r['OEM客戶']===cust);
+  if(q)src=src.filter(r=>(String(r['產品']||'')+String(r['產品代號']||'')).toLowerCase().includes(q));
+
+  // 以 產品代號 分組，代號空則用產品名稱
+  const groups={};
+  src.forEach(r=>{
+    const k=(r['產品代號']||r['產品']||'').toString().trim();
+    if(!k)return;
+    (groups[k]=groups[k]||[]).push(r);
+  });
+  // 每組依下單日期排序
+  Object.values(groups).forEach(arr=>arr.sort((a,b)=>String(a['下單日期']||'').localeCompare(String(b['下單日期']||''))));
+
+  let keys=Object.keys(groups);
+  if(mode==='1')keys=keys.filter(k=>{const p=new Set(groups[k].map(r=>r['單價']));return p.size>1;});
+  else if(mode==='2')keys=keys.filter(k=>groups[k].length>1);
+
+  // 依「最近下單日期」新到舊排序
+  keys.sort((a,b)=>{
+    const la=groups[a][groups[a].length-1]['下單日期']||'';
+    const lb=groups[b][groups[b].length-1]['下單日期']||'';
+    return String(lb).localeCompare(String(la));
+  });
+
+  let h='<table><thead><tr><th>客戶</th><th>產品</th><th>廠商</th><th class="num">叫貨次數</th><th class="num">最低單價</th><th class="num">最高單價</th><th class="num">最近單價</th><th class="num">vs 上次</th><th>歷次叫貨</th></tr></thead><tbody>';
+  if(keys.length===0){
+    h+='<tr><td colspan="9" style="text-align:center;color:var(--text2);padding:40px">尚無資料</td></tr>';
+  }else{
+    keys.forEach(k=>{
+      const arr=groups[k];
+      const prices=arr.map(r=>r['單價']||0);
+      const min=Math.min(...prices),max=Math.max(...prices);
+      const last=arr[arr.length-1];
+      const prev=arr.length>=2?arr[arr.length-2]:null;
+      const diff=prev?(last['單價']-prev['單價']):0;
+      const diffTxt=prev?(diff>0?`<span class="pct-red">▲ +${NT(diff)}</span>`:(diff<0?`<span class="pct-green">▼ ${NT(diff)}</span>`:'<span style="color:var(--text2)">—</span>')):'<span style="color:var(--text2)">首次</span>';
+      const vendors=[...new Set(arr.map(r=>r['廠商']).filter(x=>x))].join('、');
+      // 歷次：最新在前
+      const hist=arr.slice().reverse().map((r,i)=>{
+        const p=r['單價']||0;
+        let cls='';
+        if(p===min&&min!==max)cls='pct-green';
+        else if(p===max&&min!==max)cls='pct-red';
+        return `<div style="font-size:12px;line-height:1.6"><span style="color:var(--text2)">${r['下單日期']||'-'}</span> ｜ <span class="${cls}">${NT(p)}</span> × ${(r['數量']||0).toLocaleString()} ｜ ${r['廠商']||''}</div>`;
+      }).join('');
+      h+=`<tr>
+        <td><span class="${custTag(last['OEM客戶'])}">${last['OEM客戶']}</span></td>
+        <td>${last['產品']}</td>
+        <td style="font-size:12px">${vendors}</td>
+        <td class="num">${arr.length}</td>
+        <td class="num pct-green">${NT(min)}</td>
+        <td class="num pct-red">${NT(max)}</td>
+        <td class="num"><strong>${NT(last['單價'])}</strong></td>
+        <td class="num">${diffTxt}</td>
+        <td>${hist}</td>
+      </tr>`;
+    });
+  }
+  h+='</tbody></table>';document.getElementById('pp-table').innerHTML=h;
 }
 
 // ===== INIT FILTERS =====
