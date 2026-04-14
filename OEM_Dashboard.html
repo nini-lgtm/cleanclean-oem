@@ -65,6 +65,17 @@ tr:hover td{background:#f8fafc}
 .pipeline-banner h3{font-size:14px;font-weight:700;color:#92400e;margin-bottom:8px}
 .pipeline-banner .pipe-val{font-size:13px;color:#78350f}
 .total-row td{font-weight:700;border-top:2px solid var(--border);background:#f8fafc}
+#cost-table table{table-layout:fixed}
+#cost-table th,#cost-table td{text-align:center;padding:10px 6px}
+#cost-table th.num,#cost-table td.num{text-align:center}
+#cost-table th:nth-child(1),#cost-table td:nth-child(1){width:70px}
+#cost-table th:nth-child(2),#cost-table td:nth-child(2){width:230px;text-align:left}
+#cost-table th:nth-child(3),#cost-table td:nth-child(3){width:110px}
+#cost-table th:nth-child(4),#cost-table td:nth-child(4){width:70px}
+#cost-table th:nth-child(n+5):nth-child(-n+9),#cost-table td:nth-child(n+5):nth-child(-n+9){width:75px}
+#cost-table th:nth-child(10),#cost-table td:nth-child(10){width:110px}
+#cost-table th:nth-child(11),#cost-table td:nth-child(11){width:85px}
+#cost-table th:nth-child(12),#cost-table td:nth-child(12){width:80px}
 
 /* === HOME PAGE === */
 .home-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:20px;margin-bottom:32px}
