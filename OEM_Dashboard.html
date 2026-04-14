@@ -540,9 +540,9 @@ function refreshCost(){
   let totalPrice=fc.reduce((s,c)=>s+(c['客戶進價含稅']||0),0);
   let totalProfit=fc.reduce((s,c)=>s+(c['毛利']||0),0);
   let avgMargin=totalPrice?totalProfit/totalPrice:0;
-  let h='<table><thead><tr><th>客戶</th><th>商品</th><th class="num">客戶進價(含稅)</th><th class="num">芮溱</th><th class="num">膠囊片</th><th class="num">瓶貼/鋁捲</th><th class="num">彩盒</th><th class="num">成本(含稅)</th><th class="num">毛利</th><th class="num">毛利率</th></tr></thead><tbody>';
+  let h='<table><thead><tr><th>客戶</th><th>商品</th><th class="num">客戶進價(含稅)</th><th class="num">芮溱</th><th class="num">膠囊片</th><th class="num">瓶貼/鋁捲</th><th class="num">彩盒</th><th class="num">總成本(含稅)</th><th class="num">毛利</th><th class="num">毛利率</th></tr></thead><tbody>';
   fc.forEach(c=>{
-    h+=`<tr><td><span class="${custTag(c['客戶'])}">${c['客戶']}</span></td><td>${c['商品']}</td><td class="num">${NT(c['客戶進價含稅'])}</td><td class="num">${NT(c['芮溱'])}</td><td class="num">${NT(c['膠囊片'])}</td><td class="num">${NT(c['瓶貼鋁捲'])}</td><td class="num">${NT(c['彩盒'])}</td><td class="num">${NT(c['成本含稅'])}</td><td class="num">${NT(c['毛利'])}</td><td class="num ${pctCls(c['毛利率'])}">${PCT(c['毛利率'])}</td></tr>`;
+    h+=`<tr><td><span class="${custTag(c['客戶'])}">${c['客戶']}</span></td><td>${c['商品']}</td><td class="num">${NT(c['客戶進價含稅'])}</td><td class="num">${NT(c['芮溱'])}</td><td class="num">${NT(c['膠囊片'])}</td><td class="num">${NT(c['瓶貼鋁捲'])}</td><td class="num">${NT(c['彩盒'])}</td><td class="num cost-red">${NT(c['成本含稅'])}</td><td class="num">${NT(c['毛利'])}</td><td class="num ${pctCls(c['毛利率'])}">${PCT(c['毛利率'])}</td></tr>`;
   });
   h+=`<tr class="total-row"><td colspan="2"><strong>合計</strong></td><td class="num">${NT(totalPrice)}</td><td colspan="4"></td><td class="num cost-red">${NT(totalCost)}</td><td class="num">${NT(totalProfit)}</td><td class="num ${pctCls(avgMargin)}">${PCT(avgMargin)}</td></tr>`;
   h+='</tbody></table>';document.getElementById('cost-table').innerHTML=h;
