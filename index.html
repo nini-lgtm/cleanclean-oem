@@ -66,15 +66,15 @@ tr:hover td{background:#f8fafc}
 .pipeline-banner .pipe-val{font-size:13px;color:#78350f}
 .total-row td{font-weight:700;border-top:2px solid var(--border);background:#f8fafc}
 #matcost-table table{table-layout:fixed}
-#matcost-table th,#matcost-table td{text-align:center;padding:10px 6px;font-size:12px}
-#matcost-table th:nth-child(1),#matcost-table td:nth-child(1){width:70px}
-#matcost-table th:nth-child(2),#matcost-table td:nth-child(2){width:220px;text-align:left}
-#matcost-table th:nth-child(3),#matcost-table td:nth-child(3){width:100px}
-#matcost-table th:nth-child(4),#matcost-table td:nth-child(4){width:70px}
-#matcost-table th:nth-child(n+5):nth-child(-n+9),#matcost-table td:nth-child(n+5):nth-child(-n+9){width:70px}
-#matcost-table th:nth-child(10),#matcost-table td:nth-child(10){width:100px}
-#matcost-table th:nth-child(11),#matcost-table td:nth-child(11){width:80px}
+#matcost-table th,#matcost-table td{text-align:center;padding:10px 5px;font-size:12px}
+#matcost-table th:nth-child(1),#matcost-table td:nth-child(1){width:64px}
+#matcost-table th:nth-child(2),#matcost-table td:nth-child(2){width:200px;text-align:left}
+#matcost-table th:nth-child(3),#matcost-table td:nth-child(3){width:90px}
+#matcost-table th:nth-child(4),#matcost-table td:nth-child(4){width:64px}
+#matcost-table th:nth-child(n+5):nth-child(-n+10),#matcost-table td:nth-child(n+5):nth-child(-n+10){width:66px}
+#matcost-table th:nth-child(11),#matcost-table td:nth-child(11){width:95px}
 #matcost-table th:nth-child(12),#matcost-table td:nth-child(12){width:75px}
+#matcost-table th:nth-child(13),#matcost-table td:nth-child(13){width:70px}
 #sec-bom{max-width:1200px;margin:0 auto}
 #sec-bom .filters{flex-wrap:wrap;gap:8px}
 #sec-bom .kpi-row{gap:8px}
@@ -860,7 +860,8 @@ function matBucket(name){
   const n=String(name||'');
   if(n.includes('內料'))return '內料';
   if(n.includes('膠囊'))return '膠囊片';
-  if(n.includes('瓶貼')||n.includes('鋁捲')||n.includes('背膜')||n.includes('膠膜'))return '瓶貼鋁捲';
+  if(n.includes('背膜'))return '背膜捲';
+  if(n.includes('瓶貼')||n.includes('鋁捲')||n.includes('膠膜'))return '瓶貼鋁捲';
   if(n.includes('紙盒')||n.includes('紙卡')||n.includes('彩盒'))return '彩盒';
   return '包材'; // 鋁袋/加工/拆模/蓋子/其他
 }
@@ -885,13 +886,13 @@ function refreshMatCost(){
   keys.sort();
 
   let sumPrice=0,sumCost=0,sumProfit=0;
-  let h='<table><thead><tr><th>客戶</th><th>商品</th><th class="num">客戶進價(含稅)</th><th>工廠</th><th class="num">內料</th><th class="num">包材</th><th class="num">膠囊片</th><th class="num">瓶貼/鋁捲</th><th class="num">彩盒</th><th class="num">總成本(含稅)</th><th class="num">毛利</th><th class="num">毛利率</th></tr></thead><tbody>';
+  let h='<table><thead><tr><th>客戶</th><th>商品</th><th class="num">客戶進價(含稅)</th><th>工廠</th><th class="num">內料</th><th class="num">包材</th><th class="num">膠囊片</th><th class="num">瓶貼/鋁捲</th><th class="num">背膜捲</th><th class="num">彩盒</th><th class="num">總成本(含稅)</th><th class="num">毛利</th><th class="num">毛利率</th></tr></thead><tbody>';
   keys.forEach(k=>{
     const g=groups[k];
     const p=g.parent;
     const price=p['銷售單價']||0;
     // 依類型累計（× 1.05）
-    const buck={'內料':0,'包材':0,'膠囊片':0,'瓶貼鋁捲':0,'彩盒':0};
+    const buck={'內料':0,'包材':0,'膠囊片':0,'瓶貼鋁捲':0,'背膜捲':0,'彩盒':0};
     const vendors=new Set();
     g.children.forEach(c=>{
       const b=matBucket(c['產品名稱']);
@@ -913,6 +914,7 @@ function refreshMatCost(){
       <td class="num">${buck['包材']?NT(buck['包材']):'<span style="color:#cbd5e1">0</span>'}</td>
       <td class="num">${buck['膠囊片']?NT(buck['膠囊片']):'<span style="color:#cbd5e1">0</span>'}</td>
       <td class="num">${buck['瓶貼鋁捲']?NT(buck['瓶貼鋁捲']):'<span style="color:#cbd5e1">0</span>'}</td>
+      <td class="num">${buck['背膜捲']?NT(buck['背膜捲']):'<span style="color:#cbd5e1">0</span>'}</td>
       <td class="num">${buck['彩盒']?NT(buck['彩盒']):'<span style="color:#cbd5e1">0</span>'}</td>
       <td class="num cost-red">${NT(totalCost)}</td>
       <td class="num">${price?NT(profit):'<span style="color:var(--text2)">—</span>'}</td>
@@ -920,7 +922,7 @@ function refreshMatCost(){
     </tr>`;
   });
   const avgRate=sumPrice?sumProfit/sumPrice:0;
-  h+=`<tr class="total-row"><td colspan="2"><strong>合計</strong></td><td class="num">${NT(sumPrice)}</td><td colspan="6"></td><td class="num cost-red">${NT(sumCost)}</td><td class="num">${NT(sumProfit)}</td><td class="num ${pctCls(avgRate)}">${PCT(avgRate)}</td></tr>`;
+  h+=`<tr class="total-row"><td colspan="2"><strong>合計</strong></td><td class="num">${NT(sumPrice)}</td><td colspan="7"></td><td class="num cost-red">${NT(sumCost)}</td><td class="num">${NT(sumProfit)}</td><td class="num ${pctCls(avgRate)}">${PCT(avgRate)}</td></tr>`;
   h+='</tbody></table>';
   document.getElementById('matcost-table').innerHTML=h;
 }
