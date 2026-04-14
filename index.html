@@ -284,10 +284,10 @@ tr:hover td{background:#f8fafc}
 <span class="filter-label">客戶</span>
 <select id="fpc-cust" class="filter-select" onchange="refreshProcure()"><option value="">全部</option></select>
 <span class="filter-label">進度</span>
-<select id="fpc-status" class="filter-select" onchange="refreshProcure()"><option value="">全部</option></select>
+<select id="fpc-status" class="filter-select" onchange="refreshProcure()"><option value="進行中" selected>進行中（未收齊）</option><option value="">全部</option><option value="已下單">已下單</option><option value="生產中">生產中</option><option value="已進貨">已進貨（完成）</option></select>
 </div>
 <div class="kpi-row" id="pc-kpi"></div>
-<div class="table-card"><h3>採購進度追蹤</h3><div class="subtitle">資料來源：Google Drive 採購明細（每日 18:00 自動同步）</div><div id="pc-table"></div></div>
+<div class="table-card"><h3>採購進度追蹤</h3><div class="subtitle">資料來源：Google Drive 採購明細（每日 18:00 自動同步）｜預設只顯示未收齊的採購</div><div id="pc-table"></div></div>
 </div>
 
 </div>
@@ -360,7 +360,7 @@ function pcStatusTag(s){
   if(s.includes('下單'))return 'status-tag status-order';
   if(s.includes('備料'))return 'status-tag status-prep';
   if(s.includes('生產'))return 'status-tag status-prod';
-  if(s.includes('出貨')||s.includes('完成'))return 'status-tag status-ship';
+  if(s.includes('進貨')||s.includes('出貨')||s.includes('完成'))return 'status-tag status-ship';
   return 'status-tag status-order';
 }
 
@@ -441,7 +441,7 @@ function refreshHome(){
   const allNP=[...NP,...localNP];
   const allPC=[...PC,...localPC];
   const npActive=allNP.filter(r=>!r['進度'].includes('完成')).length;
-  const pcActive=allPC.filter(r=>!r['進度'].includes('出貨')&&!r['進度'].includes('完成')).length;
+  const pcActive=allPC.filter(r=>!r['進度'].includes('進貨')&&!r['進度'].includes('出貨')&&!r['進度'].includes('完成')).length;
 
   document.getElementById('home-kpi').innerHTML=`
     <div class="kpi-card"><div class="kpi-label">本年營收</div><div class="kpi-value">${NT(rev)}</div></div>
@@ -656,10 +656,11 @@ function refreshProcure(){
   const status=document.getElementById('fpc-status').value;
   let filtered=PC;
   if(cust)filtered=filtered.filter(r=>r['OEM客戶']===cust);
-  if(status)filtered=filtered.filter(r=>r['進度']===status);
+  if(status==='進行中')filtered=filtered.filter(r=>r['進度']!=='已進貨');
+  else if(status)filtered=filtered.filter(r=>r['進度']===status);
 
-  const active=filtered.filter(r=>!r['進度'].includes('出貨')&&!r['進度'].includes('完成')).length;
-  const done=filtered.filter(r=>r['進度'].includes('出貨')||r['進度'].includes('完成')).length;
+  const active=filtered.filter(r=>!r['進度'].includes('進貨')&&!r['進度'].includes('出貨')&&!r['進度'].includes('完成')).length;
+  const done=filtered.filter(r=>r['進度'].includes('進貨')||r['進度'].includes('出貨')||r['進度'].includes('完成')).length;
 
   document.getElementById('pc-kpi').innerHTML=`
     <div class="kpi-card"><div class="kpi-label">總筆數</div><div class="kpi-value">${filtered.length} 筆</div></div>
