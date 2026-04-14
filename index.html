@@ -257,6 +257,8 @@ tr:hover td{background:#f8fafc}
 <select id="finv-cust" class="filter-select" onchange="refreshInventory()"><option value="">全部</option></select>
 <span class="filter-label">類別</span>
 <select id="finv-cat" class="filter-select" onchange="refreshInventory()"><option value="">全部</option><option value="成品">成品</option><option value="物料">物料</option></select>
+<span class="filter-label">倉別</span>
+<select id="finv-wh" class="filter-select" onchange="refreshInventory()"><option value="">全部</option></select>
 </div>
 <div class="kpi-row" id="inv-kpi"></div>
 <div class="table-card"><h3>OEM 庫存明細</h3><div class="subtitle">資料來源：百禎代工廠庫存表</div><div id="inv-table"></div></div>
@@ -581,9 +583,11 @@ function refreshPipeline(){
 function refreshInventory(){
   const cust=document.getElementById('finv-cust').value;
   const cat=document.getElementById('finv-cat').value;
+  const wh=document.getElementById('finv-wh').value;
   let filtered=INV;
   if(cust)filtered=filtered.filter(r=>r['客戶']===cust);
   if(cat)filtered=filtered.filter(r=>r['類別']===cat);
+  if(wh)filtered=filtered.filter(r=>r['倉別']===wh);
 
   const totalItems=filtered.length;
   const totalQty=filtered.reduce((s,r)=>s+r['存量'],0);
@@ -597,16 +601,16 @@ function refreshInventory(){
     <div class="kpi-card"><div class="kpi-label">物料品項</div><div class="kpi-value">${matCount} 項</div></div>
     <div class="kpi-card"><div class="kpi-label">庫存成本總值</div><div class="kpi-value">${NT(totalCost)}</div></div>`;
 
-  let h='<table><thead><tr><th>客戶</th><th>類別</th><th>產品代號</th><th>產品名稱</th><th class="num">存量</th><th>單位</th><th>最後進貨日</th><th class="num">成本單價</th><th class="num">成本總值</th></tr></thead><tbody>';
+  let h='<table><thead><tr><th>客戶</th><th>類別</th><th>倉別</th><th>產品代號</th><th>產品名稱</th><th class="num">存量</th><th>單位</th><th>最後進貨日</th><th class="num">成本單價</th><th class="num">成本總值</th></tr></thead><tbody>';
   if(filtered.length===0){
-    h+='<tr><td colspan="9" style="text-align:center;color:var(--text2);padding:40px">尚無庫存資料</td></tr>';
+    h+='<tr><td colspan="10" style="text-align:center;color:var(--text2);padding:40px">尚無庫存資料</td></tr>';
   }else{
     filtered.forEach(r=>{
       const catCls=r['類別']==='成品'?'status-tag status-ship':'status-tag status-prep';
-      h+=`<tr><td><span class="${custTag(r['客戶'])}">${r['客戶']}</span></td><td><span class="${catCls}">${r['類別']}</span></td><td>${r['產品代號']}</td><td>${r['產品名稱']}</td><td class="num">${r['存量'].toLocaleString()}</td><td>${r['單位']}</td><td>${r['最後進貨日']}</td><td class="num">${r['成本單價']?NT(r['成本單價']):'-'}</td><td class="num">${r['成本總值']?NT(r['成本總值']):'-'}</td></tr>`;
+      h+=`<tr><td><span class="${custTag(r['客戶'])}">${r['客戶']}</span></td><td><span class="${catCls}">${r['類別']}</span></td><td>${r['倉別']||'-'}</td><td>${r['產品代號']}</td><td>${r['產品名稱']}</td><td class="num">${r['存量'].toLocaleString()}</td><td>${r['單位']}</td><td>${r['最後進貨日']}</td><td class="num">${r['成本單價']?NT(r['成本單價']):'-'}</td><td class="num">${r['成本總值']?NT(r['成本總值']):'-'}</td></tr>`;
     });
     const totalVal=filtered.reduce((s,r)=>s+r['成本總值'],0);
-    h+=`<tr class="total-row"><td colspan="4"><strong>合計</strong></td><td class="num">${filtered.reduce((s,r)=>s+r['存量'],0).toLocaleString()}</td><td colspan="3"></td><td class="num">${NT(totalVal)}</td></tr>`;
+    h+=`<tr class="total-row"><td colspan="5"><strong>合計</strong></td><td class="num">${filtered.reduce((s,r)=>s+r['存量'],0).toLocaleString()}</td><td colspan="3"></td><td class="num">${NT(totalVal)}</td></tr>`;
   }
   h+='</tbody></table>';document.getElementById('inv-table').innerHTML=h;
 }
@@ -687,6 +691,9 @@ function initFilters(){
   const invCusts=[...new Set(INV.map(r=>r['客戶']))].sort();
   const finvCust=document.getElementById('finv-cust');
   invCusts.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;finvCust.appendChild(o);});
+  const invWh=[...new Set(INV.map(r=>r['倉別']).filter(x=>x))].sort();
+  const finvWh=document.getElementById('finv-wh');
+  invWh.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;finvWh.appendChild(o);});
 
   // New Products filters
   const npCusts=[...new Set(NP.map(r=>r['OEM客戶']))].sort();
