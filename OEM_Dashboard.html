@@ -102,10 +102,17 @@ tr:hover td{background:#f8fafc}
 .bom-view-btn{background:transparent;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;color:var(--text2);font-weight:500;transition:all .15s}
 .bom-view-btn.active{background:#fff;color:var(--blue);font-weight:700;box-shadow:0 1px 3px rgba(0,0,0,.08)}
 .bom-view-btn:hover:not(.active){color:var(--text)}
-.bom-flat-table th{background:#f8fafc;padding:8px 10px;text-align:left;font-size:12px;border-bottom:2px solid var(--border);white-space:nowrap}
+.bom-flat-table{border-collapse:separate;border-spacing:0}
+.bom-flat-table th{background:#f8fafc;padding:8px 10px;text-align:left;font-size:12px;border-bottom:2px solid var(--border);white-space:nowrap;position:sticky;top:0}
 .bom-flat-table td{padding:6px 10px;font-size:12px;border-bottom:1px solid #f1f5f9}
-.bom-flat-table tr.parent-row td{background:#eff6ff;font-weight:600}
-.bom-flat-table tr.parent-row td:first-child{color:var(--blue);font-family:monospace}
+.bom-flat-table tr.parent-row td{background:linear-gradient(90deg,#dbeafe,#eff6ff);font-weight:700;border-top:3px solid var(--blue);padding-top:9px;padding-bottom:9px}
+.bom-flat-table tr.parent-row td:first-child{color:var(--blue);font-family:monospace;font-size:13px}
+.bom-flat-table tr.parent-row+tr td{padding-top:8px}
+.bom-flat-table tr.child-row td{background:#fafbfc}
+.bom-flat-table tr.child-row td:first-child{padding-left:32px;position:relative;color:#94a3b8}
+.bom-flat-table tr.child-row td:first-child::before{content:"└";position:absolute;left:14px;color:#cbd5e1;font-weight:400}
+.bom-flat-table tr.child-row.last-child td{border-bottom:1px solid #e2e8f0}
+.bom-flat-table tr.child-row:hover td{background:#eff6ff}
 .tag-mat-nl{background:#dbeafe;color:#1d4ed8}  /* 內料 */
 .tag-mat-pt{background:#fed7aa;color:#c2410c}  /* 瓶貼 */
 .tag-mat-box{background:#dcfce7;color:#15803d} /* 紙盒/彩盒 */
@@ -920,12 +927,13 @@ function refreshBom(){
       const sumTax=kids.reduce((s,c)=>s+((c['採購成本']||0)*1.05),0);
       const custLabel=p?p['客戶']:(kids[0]&&kids[0]['客戶']||'');
       const nameLabel=p?p['產品名稱']:'(無父項)';
-      th+=`<tr class="parent-row"><td>${k}</td><td></td><td>${nameLabel}</td><td><span class="${custTag(custLabel)}" style="font-size:10px">${custLabel||'-'}</span></td><td colspan="2" style="color:var(--text2);font-size:11px">共 ${kids.length} 項物料</td><td class="num" style="color:${sumTax===0?'var(--text2)':'var(--red)'};font-weight:700">${NT(sumTax)}</td></tr>`;
-      kids.forEach(c=>{
+      th+=`<tr class="parent-row"><td>${k}</td><td></td><td>${nameLabel}</td><td><span class="${custTag(custLabel)}" style="font-size:10px">${custLabel||'-'}</span></td><td colspan="2" style="color:var(--text2);font-size:11px;font-weight:500">共 ${kids.length} 項物料</td><td class="num" style="color:${sumTax===0?'var(--text2)':'var(--red)'};font-weight:700">${NT(sumTax)}</td></tr>`;
+      kids.forEach((c,ci)=>{
         const [t,cls]=matType(c['產品名稱']);
         const raw=c['採購成本']||0;
         const tax=raw*1.05;
-        th+=`<tr><td style="font-family:monospace;color:var(--text2)">${c['產品代號']}</td><td><span class="bom-sub-tag ${cls}">${t}</span></td><td>${c['產品名稱']}</td><td></td><td style="color:var(--text2)">${c['供應商']||'-'}</td><td class="num" style="color:var(--text2)">${NT(raw)}</td><td class="num" style="font-weight:600${raw===0?';color:var(--text2)':''}">${NT(tax)}</td></tr>`;
+        const lastCls=ci===kids.length-1?' last-child':'';
+        th+=`<tr class="child-row${lastCls}"><td style="font-family:monospace">${c['產品代號']}</td><td><span class="bom-sub-tag ${cls}">${t}</span></td><td>${c['產品名稱']}</td><td></td><td style="color:var(--text2)">${c['供應商']||'-'}</td><td class="num" style="color:var(--text2)">${NT(raw)}</td><td class="num" style="font-weight:600${raw===0?';color:var(--text2)':''}">${NT(tax)}</td></tr>`;
       });
     });
     th+='</tbody></table>';
