@@ -45,7 +45,8 @@ body{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;background:var(--
 .table-card{background:var(--card);border-radius:12px;padding:20px;box-shadow:var(--shadow);margin-bottom:24px;overflow-x:auto}
 .table-card h3{font-size:15px;font-weight:700;margin-bottom:12px}
 .table-card .subtitle{font-size:12px;color:var(--text2);margin-bottom:12px}
-.search-box{padding:8px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;width:260px;margin-bottom:12px}
+.search-box{padding:8px 14px 8px 36px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;width:240px;background:#fff url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><circle cx='11' cy='11' r='7'/><line x1='21' y1='21' x2='16.65' y2='16.65'/></svg>") no-repeat 12px center;transition:all .2s}
+.search-box:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(59,130,246,.15);width:280px}
 table{width:100%;border-collapse:collapse;font-size:13px}
 th{background:#f8fafc;color:var(--text2);font-weight:600;padding:10px 12px;text-align:left;border-bottom:2px solid var(--border);white-space:nowrap}
 td{padding:9px 12px;border-bottom:1px solid #f1f5f9;white-space:nowrap}
@@ -286,8 +287,7 @@ tr:hover td{background:#f8fafc}
 <select id="fpc-status" class="filter-select" onchange="refreshProcure()"><option value="">全部</option></select>
 </div>
 <div class="kpi-row" id="pc-kpi"></div>
-<button class="btn-add" onclick="openModal('pc')">+ 新增採購</button><span id="pc-sync-hint"></span>
-<div class="table-card"><h3>採購進度追蹤</h3><div id="pc-table"></div></div>
+<div class="table-card"><h3>採購進度追蹤</h3><div class="subtitle">資料來源：Google Drive 採購明細（每日 18:00 自動同步）</div><div id="pc-table"></div></div>
 </div>
 
 </div>
@@ -654,32 +654,24 @@ function refreshNewProd(){
 function refreshProcure(){
   const cust=document.getElementById('fpc-cust').value;
   const status=document.getElementById('fpc-status').value;
-  const all=[...PC,...localPC];
-  let filtered=all;
+  let filtered=PC;
   if(cust)filtered=filtered.filter(r=>r['OEM客戶']===cust);
   if(status)filtered=filtered.filter(r=>r['進度']===status);
 
   const active=filtered.filter(r=>!r['進度'].includes('出貨')&&!r['進度'].includes('完成')).length;
   const done=filtered.filter(r=>r['進度'].includes('出貨')||r['進度'].includes('完成')).length;
-  const unsync=filtered.filter(r=>r._local).length;
 
   document.getElementById('pc-kpi').innerHTML=`
     <div class="kpi-card"><div class="kpi-label">總筆數</div><div class="kpi-value">${filtered.length} 筆</div></div>
     <div class="kpi-card"><div class="kpi-label">進行中</div><div class="kpi-value">${active} 筆</div></div>
     <div class="kpi-card"><div class="kpi-label">已完成</div><div class="kpi-value">${done} 筆</div></div>`;
 
-  document.getElementById('pc-sync-hint').innerHTML=unsync>0?`<span class="btn-sync-hint">${unsync} 筆未同步 — 請告知 Claude 寫回 oem_data.js</span>`:'';
-
-  let h='<table><thead><tr><th>OEM客戶</th><th>廠商</th><th>產品</th><th class="num">數量</th><th>下單日期</th><th>預計交期</th><th>進度</th><th>備註</th><th>狀態</th></tr></thead><tbody>';
+  let h='<table><thead><tr><th>OEM客戶</th><th>廠商</th><th>產品</th><th class="num">採購數量</th><th class="num">已進數量</th><th>下單日期</th><th>預計交期</th><th>進度</th><th>備註</th></tr></thead><tbody>';
   if(filtered.length===0){
-    h+='<tr><td colspan="9" style="text-align:center;color:var(--text2);padding:40px">尚無採購進度資料，點擊上方「+ 新增採購」開始</td></tr>';
+    h+='<tr><td colspan="9" style="text-align:center;color:var(--text2);padding:40px">尚無採購進度資料</td></tr>';
   }else{
-    let localIdx=0;
     filtered.forEach(r=>{
-      const isLocal=r._local;
-      const syncCol=isLocal?`<span class="status-tag status-unsync">未同步</span> <a href="#" onclick="deleteLocalPC(${localIdx});return false" style="color:#991b1b;font-size:11px">刪除</a>`:'<span class="status-tag status-done">已同步</span>';
-      if(isLocal)localIdx++;
-      h+=`<tr><td><span class="${custTag(r['OEM客戶'])}">${r['OEM客戶']}</span></td><td>${r['廠商']}</td><td>${r['產品']}</td><td class="num">${(r['數量']||0).toLocaleString()}</td><td>${r['下單日期']}</td><td>${r['預計交期']}</td><td><span class="${pcStatusTag(r['進度'])}">${r['進度']}</span></td><td>${r['備註']||''}</td><td>${syncCol}</td></tr>`;
+      h+=`<tr><td><span class="${custTag(r['OEM客戶'])}">${r['OEM客戶']}</span></td><td>${r['廠商']}</td><td>${r['產品']}</td><td class="num">${(r['數量']||0).toLocaleString()}</td><td class="num">${(r['已進數量']||0).toLocaleString()}</td><td>${r['下單日期']}</td><td>${r['預計交期']}</td><td><span class="${pcStatusTag(r['進度'])}">${r['進度']}</span></td><td>${r['備註']||''}</td></tr>`;
     });
   }
   h+='</tbody></table>';document.getElementById('pc-table').innerHTML=h;
