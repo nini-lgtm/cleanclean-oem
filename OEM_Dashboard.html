@@ -317,14 +317,19 @@ tr:hover td{background:#f8fafc}
 <!-- PAGE: 銷售明細 IEA (範本) -->
 <div id="page-sales_iea" class="page">
 <div class="pipeline-banner" style="background:#fef3c7;border-color:#f59e0b">
-<h3>📋 範本預覽</h3>
-<div class="pipe-val">資料來源：OEM 銷售明細 IEA.xlsx + OEM 黃金甲 銷售明細 IEA.xlsx（原先「銷售明細」不變動）</div>
+<h3>📋 範本預覽（含舊資料自動合併）</h3>
+<div class="pipe-val">歷史銷貨（HIST-）+ IEA 匯入，統一檢視。原「銷售明細」頁不動。</div>
 </div>
+<div id="sales_iea-recon" style="margin-bottom:12px"></div>
 <div class="filters">
+<span class="filter-label">資料來源</span>
+<select id="fsi-src" class="filter-select" onchange="refreshSalesIEA()"><option value="">全部</option><option value="HIST">僅舊資料</option><option value="IEA">僅 IEA</option></select>
+<span class="filter-label">年度</span>
+<select id="fsi-year" class="filter-select" onchange="refreshSalesIEA()"><option value="">全部</option></select>
+<span class="filter-label">月份</span>
+<select id="fsi-month" class="filter-select" onchange="refreshSalesIEA()"><option value="">全部</option></select>
 <span class="filter-label">客戶</span>
 <select id="fsi-cust" class="filter-select" onchange="refreshSalesIEA()"><option value="">全部</option></select>
-<span class="filter-label">業務員</span>
-<select id="fsi-sales" class="filter-select" onchange="refreshSalesIEA()"><option value="">全部</option></select>
 <input type="text" id="fsi-search" class="search-box" placeholder="搜尋產品 / 單號..." oninput="refreshSalesIEA()">
 </div>
 <div class="kpi-row" id="sikpi-row"></div>
@@ -673,24 +678,84 @@ function refreshDetail(){
   h+='</tbody></table>';document.getElementById('detail-table').innerHTML=h;
 }
 
-// ===== SALES IEA (範本) =====
+// ===== SALES IEA (舊+新合併) =====
+// 舊資料轉 IEA 格式
+const SALES_HIST=(function(){
+  const out=[];const seq={};
+  S.forEach(r=>{
+    const y=(r['年度']||'').replace('年','');
+    const m=(r['月份']||'').replace('月','').replace('待確認','00');
+    const k=y+m;seq[k]=(seq[k]||0)+1;
+    const qty=r['數量']||0;const rev=r['銷貨收入']||0;
+    out.push({
+      '_src':'HIST',
+      '年度':r['年度']||'',
+      '月份':r['月份']||'',
+      '單號':`HIST-${y}${m}-${String(seq[k]).padStart(3,'0')}`,
+      '發票':'','業務員':'','客戶代號':'',
+      '客戶':r['OEM客戶']||'',
+      '產品代號':'',
+      '產品名稱':((r['產品']||'')+' '+(r['規格']||'')).trim(),
+      '型態':r['月份']==='待確認'?'待出貨':'',
+      '分倉代號':'',
+      '數量':qty,
+      '單價':qty?rev/qty:0,
+      '合計':rev,
+      '成本單價':qty?(r['銷貨成本']||0)/qty:0,
+      '成本小計':r['銷貨成本']||0,
+      '毛利':r['淨利']||0,
+      '毛利率':(r['淨利率']||0)*100,
+    });
+  });
+  return out;
+})();
+// IEA 資料補上 年度/月份（從單號推）
+const SALES_IEA_TAGGED=SALES_IEA.map(r=>{
+  const no=String(r['單號']||'');
+  const m=no.match(/(\d{4})(\d{2})/);
+  return Object.assign({},r,{'_src':'IEA','年度':m?m[1]+'年':'','月份':m?m[2]+'月':''});
+});
+const SALES_ALL=SALES_HIST.concat(SALES_IEA_TAGGED);
+
 let _siInit=false;
 function initSalesIEA(){
   if(_siInit)return;_siInit=true;
-  const custs=[...new Set(SALES_IEA.map(r=>r['客戶']).filter(Boolean))].sort();
-  const sales=[...new Set(SALES_IEA.map(r=>r['業務員']).filter(Boolean))].sort();
+  const custs=[...new Set(SALES_ALL.map(r=>r['客戶']).filter(Boolean))].sort();
+  const years=[...new Set(SALES_ALL.map(r=>r['年度']).filter(Boolean))].sort().reverse();
   const sc=document.getElementById('fsi-cust');custs.forEach(c=>sc.innerHTML+=`<option value="${c}">${c}</option>`);
-  const ss=document.getElementById('fsi-sales');sales.forEach(s=>ss.innerHTML+=`<option value="${s}">${s}</option>`);
+  const sy=document.getElementById('fsi-year');years.forEach(y=>sy.innerHTML+=`<option value="${y}">${y}</option>`);
+  const sm=document.getElementById('fsi-month');['01月','02月','03月','04月','05月','06月','07月','08月','09月','10月','11月','12月','待確認'].forEach(m=>sm.innerHTML+=`<option value="${m}">${m}</option>`);
 }
+
 function refreshSalesIEA(){
   initSalesIEA();
+  const src=document.getElementById('fsi-src').value;
+  const y=document.getElementById('fsi-year').value;
+  const mo=document.getElementById('fsi-month').value;
   const c=document.getElementById('fsi-cust').value;
-  const s=document.getElementById('fsi-sales').value;
   const q=(document.getElementById('fsi-search').value||'').toLowerCase();
-  let data=SALES_IEA.slice();
+
+  let data=SALES_ALL.slice();
+  if(src)data=data.filter(r=>r['_src']===src);
+  if(y)data=data.filter(r=>r['年度']===y);
+  if(mo)data=data.filter(r=>r['月份']===mo);
   if(c)data=data.filter(r=>r['客戶']===c);
-  if(s)data=data.filter(r=>r['業務員']===s);
   if(q)data=data.filter(r=>((r['產品名稱']||'')+(r['單號']||'')+(r['產品代號']||'')).toLowerCase().includes(q));
+
+  // === 對帳區 ===
+  const histOrig=S.reduce((s,r)=>s+(r['銷貨收入']||0),0);
+  const histConv=SALES_HIST.reduce((s,r)=>s+(r['合計']||0),0);
+  const diff=Math.round(histOrig-histConv);
+  const reconOK=Math.abs(diff)<1;
+  document.getElementById('sales_iea-recon').innerHTML=`
+    <div class="pipeline-banner" style="background:${reconOK?'#ecfdf5':'#fef2f2'};border-color:${reconOK?'#10b981':'#ef4444'}">
+      <h3>${reconOK?'✅':'⚠️'} 舊資料 → IEA 轉換對帳</h3>
+      <div class="pipe-val">
+        舊 sales 銷貨收入總額 ${NT(histOrig)} ｜ 轉換後合計 ${NT(histConv)} ｜
+        差額 <b style="color:${reconOK?'#10b981':'#ef4444'}">${NT(diff)}</b>
+        ${reconOK?'（完全一致，轉換無誤）':'（有差異，請檢查）'}
+      </div>
+    </div>`;
 
   const totalAmt=data.reduce((s,r)=>s+(r['合計']||0),0);
   const totalCost=data.reduce((s,r)=>s+(r['成本小計']||0),0);
@@ -703,11 +768,12 @@ function refreshSalesIEA(){
     <div class="kpi-card"><div class="kpi-label">毛利率</div><div class="kpi-value">${margin.toFixed(2)}%</div></div>
     <div class="kpi-card"><div class="kpi-label">筆數</div><div class="kpi-value">${data.length}筆</div></div>`;
 
-  let h='<table><thead><tr><th>單號</th><th>發票</th><th>客戶</th><th>產品代號</th><th>產品名稱</th><th>業務員</th><th class="num">數量</th><th class="num">單價</th><th class="num">合計</th><th class="num">成本小計</th><th class="num">毛利</th><th class="num">毛利率</th></tr></thead><tbody>';
-  data.forEach(r=>{
+  let h='<table><thead><tr><th>來源</th><th>年月</th><th>單號</th><th>客戶</th><th>產品代號</th><th>產品名稱</th><th class="num">數量</th><th class="num">單價</th><th class="num">合計</th><th class="num">成本小計</th><th class="num">毛利</th><th class="num">毛利率</th></tr></thead><tbody>';
+  data.sort((a,b)=>((b['年度']||'')+(b['月份']||'')+(b['單號']||'')).localeCompare((a['年度']||'')+(a['月份']||'')+(a['單號']||''))).forEach(r=>{
     const mr=(typeof r['毛利率']==='number')?r['毛利率']:parseFloat(r['毛利率'])||0;
     const cls=mr>=20?'pos':(mr>=0?'':'neg');
-    h+=`<tr><td>${r['單號']||''}</td><td>${r['發票']||''}</td><td><span class="${custTag(r['客戶'])}">${r['客戶']||''}</span></td><td>${r['產品代號']||''}</td><td>${r['產品名稱']||''}</td><td>${r['業務員']||''}</td><td class="num">${(r['數量']||0).toLocaleString()}</td><td class="num">${NT(r['單價']||0)}</td><td class="num">${NT(r['合計']||0)}</td><td class="num">${NT(r['成本小計']||0)}</td><td class="num">${NT(r['毛利']||0)}</td><td class="num ${cls}">${mr.toFixed(2)}%</td></tr>`;
+    const srcTag=r['_src']==='HIST'?'<span style="background:#e5e7eb;color:#6b7280;padding:2px 6px;border-radius:4px;font-size:11px">舊</span>':'<span style="background:#dbeafe;color:#1e40af;padding:2px 6px;border-radius:4px;font-size:11px">IEA</span>';
+    h+=`<tr><td>${srcTag}</td><td>${(r['年度']||'').replace('年','')}/${(r['月份']||'').replace('月','')}</td><td>${r['單號']||''}</td><td><span class="${custTag(r['客戶'])}">${r['客戶']||''}</span></td><td>${r['產品代號']||''}</td><td>${r['產品名稱']||''}</td><td class="num">${(r['數量']||0).toLocaleString()}</td><td class="num">${NT(r['單價']||0)}</td><td class="num">${NT(r['合計']||0)}</td><td class="num">${NT(r['成本小計']||0)}</td><td class="num">${NT(r['毛利']||0)}</td><td class="num ${cls}">${mr.toFixed(2)}%</td></tr>`;
   });
   h+='</tbody></table>';
   document.getElementById('sales_iea-table').innerHTML=h;
