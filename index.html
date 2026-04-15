@@ -246,7 +246,7 @@ tr:hover td{background:#f8fafc}
 <button class="nav-btn" onclick="showPage('matcost',this)">商品成本</button>
 <button class="nav-btn" onclick="showPage('detail',this)">銷售明細</button>
 <button class="nav-btn" onclick="showPage('sales_iea',this)">銷售明細 IEA <span style="font-size:10px;color:#f59e0b;margin-left:4px">範本</span></button>
-<button class="nav-btn" onclick="showPage('pipeline',this)">待出貨</button>
+<button class="nav-btn" onclick="showPage('orders',this)">訂購單</button>
 </nav>
 
 <!-- PAGE 1: 總覽 -->
@@ -338,14 +338,21 @@ tr:hover td{background:#f8fafc}
 <div class="table-card"><h3>銷售明細 IEA</h3><div id="sales_iea-table"></div></div>
 </div>
 
-<!-- PAGE 5: 待出貨 -->
-<div id="page-pipeline" class="page">
-<div class="pipeline-banner">
-<h3>更新方式</h3>
-<div class="pipe-val">訂單出貨收款後，請直接告知 Claude 更新 oem_data.js 資料。</div>
+<!-- PAGE: 訂購單（客戶 → 我們） -->
+<div id="page-orders" class="page">
+<div class="pipeline-banner" style="background:#eff6ff;border-color:#3b82f6">
+<h3>📋 訂購單（客戶下單給我們）</h3>
+<div class="pipe-val">資料來源：OEM報表用_訂單明細 IK1-4.xlsx ｜「出貨完畢」欄空白 = 待出貨，有填 = 已出貨</div>
 </div>
-<div class="kpi-row" id="pkpi-row"></div>
-<div class="table-card"><h3>待出貨訂單</h3><div id="pipeline-table"></div></div>
+<div class="filters">
+<span class="filter-label">狀態</span>
+<select id="fo-status" class="filter-select" onchange="refreshOrders()"><option value="">全部</option><option value="待出貨" selected>待出貨</option><option value="已出貨">已出貨</option></select>
+<span class="filter-label">客戶</span>
+<select id="fo-cust" class="filter-select" onchange="refreshOrders()"><option value="">全部</option></select>
+<input type="text" id="fo-search" class="search-box" placeholder="搜尋產品 / 單號..." oninput="refreshOrders()">
+</div>
+<div class="kpi-row" id="okpi-row"></div>
+<div class="table-card"><h3>訂購單明細</h3><div id="orders-table"></div></div>
 </div>
 </div>
 
@@ -467,6 +474,7 @@ const NP=RAW.new_products||[];
 const PC=RAW.procurement||[];
 const INV=RAW.inventory||[];
 const SALES_IEA=RAW.sales_iea||[];
+const ORDERS=RAW.orders||[];
 
 const CONFIRMED=S.filter(r=>r['月份']!=='待確認');
 const PENDING=S.filter(r=>r['月份']==='待確認');
@@ -562,7 +570,7 @@ function showPage(id,btn){
   document.getElementById('page-'+id).classList.add('active');
   document.querySelectorAll('#sec-oem .nav-btn').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
-  if(id==='customer')refreshCustomer();if(id==='matcost')refreshMatCost();if(id==='detail')refreshDetail();if(id==='sales_iea')refreshSalesIEA();if(id==='pipeline')refreshPipeline();
+  if(id==='customer')refreshCustomer();if(id==='matcost')refreshMatCost();if(id==='detail')refreshDetail();if(id==='sales_iea')refreshSalesIEA();if(id==='orders')refreshOrders();
 }
 
 // ===== HOME =====
@@ -803,22 +811,50 @@ function refreshSalesIEA(){
   document.getElementById('sales_iea-table').innerHTML=h;
 }
 
-// ===== PIPELINE =====
-function refreshPipeline(){
-  const pRev=PENDING.reduce((s,r)=>s+r['銷貨收入'],0);
-  const pProfit=PENDING.reduce((s,r)=>s+r['淨利'],0);
-  const pMargin=pRev?pProfit/pRev:0;
-  document.getElementById('pkpi-row').innerHTML=`
-    <div class="kpi-card"><div class="kpi-label">預估銷貨收入</div><div class="kpi-value">${NT(pRev)}</div></div>
-    <div class="kpi-card"><div class="kpi-label">預估淨利</div><div class="kpi-value">${NT(pProfit)}</div></div>
-    <div class="kpi-card"><div class="kpi-label">預估淨利率</div><div class="kpi-value">${PENDING.length?PCT(pMargin):'-'}</div></div>
-    <div class="kpi-card"><div class="kpi-label">待出貨筆數</div><div class="kpi-value">${PENDING.length}筆</div></div>`;
+// ===== ORDERS (訂購單) =====
+let _oInit=false;
+function initOrders(){
+  if(_oInit)return;_oInit=true;
+  const custs=[...new Set(ORDERS.map(r=>r['客戶']).filter(Boolean))].sort();
+  const sel=document.getElementById('fo-cust');
+  custs.forEach(c=>sel.innerHTML+=`<option value="${c}">${c}</option>`);
+}
+function refreshOrders(){
+  initOrders();
+  const st=document.getElementById('fo-status').value;
+  const c=document.getElementById('fo-cust').value;
+  const q=(document.getElementById('fo-search').value||'').toLowerCase();
+  let data=ORDERS.slice();
+  if(st)data=data.filter(r=>r['狀態']===st);
+  if(c)data=data.filter(r=>r['客戶']===c);
+  if(q)data=data.filter(r=>((r['產品名稱']||'')+(r['訂單單號']||'')+(r['產品代號']||'')).toLowerCase().includes(q));
 
-  let h='<table><thead><tr><th>年度</th><th>OEM客戶</th><th>產品</th><th>規格</th><th class="num">數量</th><th class="num">單價(含稅)</th><th class="num">預估銷貨收入</th><th class="num">預估淨利</th><th class="num">淨利率</th></tr></thead><tbody>';
-  PENDING.forEach(r=>{
-    h+=`<tr><td>${r['年度']}</td><td><span class="${custTag(r['OEM客戶'])}">${r['OEM客戶']}</span></td><td>${r['產品']}</td><td>${r['規格']}</td><td class="num">${r['數量'].toLocaleString()}</td><td class="num">${NT(r['單價含稅'])}</td><td class="num">${NT(r['銷貨收入'])}</td><td class="num">${NT(r['淨利'])}</td><td class="num ${pctCls(r['淨利率'])}">${PCT(r['淨利率'])}</td></tr>`;
+  const totalAmt=data.reduce((s,r)=>s+(r['合計']||0),0);
+  const totalCost=data.reduce((s,r)=>s+(r['成本小計']||0),0);
+  const totalProfit=data.reduce((s,r)=>s+(r['毛利']||0),0);
+  const margin=totalAmt?totalProfit/totalAmt*100:0;
+  const pending=ORDERS.filter(r=>r['狀態']==='待出貨');
+  const shipped=ORDERS.filter(r=>r['狀態']==='已出貨');
+  document.getElementById('okpi-row').innerHTML=`
+    <div class="kpi-card"><div class="kpi-label">銷貨金額</div><div class="kpi-value">${NT(totalAmt)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">成本</div><div class="kpi-value">${NT(totalCost)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">毛利</div><div class="kpi-value">${NT(totalProfit)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">毛利率</div><div class="kpi-value">${margin.toFixed(2)}%</div></div>
+    <div class="kpi-card"><div class="kpi-label">待出貨 / 已出貨</div><div class="kpi-value">${pending.length} / ${shipped.length}</div></div>`;
+
+  let h='<table><thead><tr><th>狀態</th><th>訂單日期</th><th>訂單單號</th><th>出貨單號</th><th>客戶</th><th>業務員</th><th>產品代號</th><th>產品名稱</th><th class="num">數量</th><th class="num">單價</th><th class="num">合計</th><th class="num">成本小計</th><th class="num">毛利</th><th class="num">毛利率</th></tr></thead><tbody>';
+  data.sort((a,b)=>(b['訂單日期']||'').localeCompare(a['訂單日期']||'')).forEach(r=>{
+    const isPending=r['狀態']==='待出貨';
+    const rowBg=isPending?' style="background:#fffbeb"':'';
+    const stTag=isPending
+      ?'<span style="background:#fed7aa;color:#c2410c;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600">待出貨</span>'
+      :'<span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600">已出貨</span>';
+    const mr=r['毛利率']||0;
+    const cls=mr>=20?'pos':(mr>=0?'':'neg');
+    h+=`<tr${rowBg}><td>${stTag}</td><td>${r['訂單日期']||''}</td><td>${r['訂單單號']||''}</td><td>${r['出貨單號']||'-'}</td><td><span class="${custTag(r['客戶'])}">${r['客戶']||''}</span></td><td>${r['業務員']||''}</td><td>${r['產品代號']||''}</td><td>${r['產品名稱']||''}</td><td class="num">${(r['數量']||0).toLocaleString()}</td><td class="num">${NT(r['單價']||0)}</td><td class="num">${NT(r['合計']||0)}</td><td class="num">${NT(r['成本小計']||0)}</td><td class="num">${NT(r['毛利']||0)}</td><td class="num ${cls}">${mr.toFixed(2)}%</td></tr>`;
   });
-  h+='</tbody></table>';document.getElementById('pipeline-table').innerHTML=h;
+  h+='</tbody></table>';
+  document.getElementById('orders-table').innerHTML=h;
 }
 
 // ===== INVENTORY =====
