@@ -580,7 +580,7 @@ function refreshHome(){
   const rev=yearData.reduce((s,r)=>s+r['銷貨收入'],0);
   const profit=yearData.reduce((s,r)=>s+r['淨利'],0);
   const margin=rev?profit/rev:0;
-  const pendRev=PENDING.reduce((s,r)=>s+r['銷貨收入'],0);
+  const pendRev=ORDERS.filter(r=>r['狀態']==='待出貨').reduce((s,r)=>s+(r['合計']||0),0);
   const allNP=[...NP,...localNP];
   const allPC=[...PC,...localPC];
   const npActive=allNP.filter(r=>!r['進度'].includes('完成')).length;
@@ -615,11 +615,16 @@ function refresh(){
   const m=document.getElementById('f-month').value;
   const c=document.getElementById('f-cust').value;
   const filtered=filterConfirmed(y,m,c);
-  const pendFiltered=PENDING.filter(r=>{if(y&&r['年度']!==y)return false;if(c&&r['OEM客戶']!==c)return false;return true;});
-  const pendRev=pendFiltered.reduce((s,r)=>s+r['銷貨收入'],0);
-  const pendProfit=pendFiltered.reduce((s,r)=>s+r['淨利'],0);
-  if(pendFiltered.length>0){
-    document.getElementById('pipeline-summary').innerHTML=`<div class="pipeline-banner"><h3>待出貨（未納入下方計算）</h3><div class="pipe-val">共 ${pendFiltered.length} 筆 ｜ 預估銷貨收入 ${NT(pendRev)} ｜ 預估淨利 ${NT(pendProfit)}</div></div>`;
+  // 待出貨：改讀訂購單（客戶下單未出貨），非舊 sales 待確認
+  const pendOrders=ORDERS.filter(r=>{
+    if(r['狀態']!=='待出貨')return false;
+    if(c&&r['客戶']!==c)return false;
+    return true;
+  });
+  const pendRev=pendOrders.reduce((s,r)=>s+(r['合計']||0),0);
+  const pendProfit=pendOrders.reduce((s,r)=>s+(r['毛利']||0),0);
+  if(pendOrders.length>0){
+    document.getElementById('pipeline-summary').innerHTML=`<div class="pipeline-banner" onclick="document.querySelectorAll('#sec-oem .nav-btn')[5].click()" style="cursor:pointer"><h3>🟠 待出貨訂單（未納入下方計算 ｜ 點我查看）</h3><div class="pipe-val">共 ${pendOrders.length} 筆 ｜ 預估銷貨 <b>${NT(pendRev)}</b> ｜ 預估毛利 <b>${NT(pendProfit)}</b></div></div>`;
   }else{document.getElementById('pipeline-summary').innerHTML='';}
   makeKPI('kpi-row',filtered);
 
