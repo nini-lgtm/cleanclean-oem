@@ -323,7 +323,7 @@ tr:hover td{background:#f8fafc}
 <div id="sales_iea-recon" style="margin-bottom:12px"></div>
 <div class="filters">
 <span class="filter-label">狀態</span>
-<select id="fsi-status" class="filter-select" onchange="refreshSalesIEA()"><option value="">全部</option><option value="已出貨">已出貨</option><option value="待確認">待確認</option></select>
+<select id="fsi-status" class="filter-select" onchange="refreshSalesIEA()"><option value="">全部</option><option value="已出貨">已出貨</option><option value="待出貨">待出貨</option></select>
 <span class="filter-label">資料來源</span>
 <select id="fsi-src" class="filter-select" onchange="refreshSalesIEA()"><option value="">全部</option><option value="HIST">僅舊資料</option><option value="IEA">僅 IEA</option></select>
 <span class="filter-label">年度</span>
@@ -739,7 +739,7 @@ function refreshSalesIEA(){
 
   const status=document.getElementById('fsi-status').value;
   // 標記每筆的狀態
-  SALES_ALL.forEach(r=>{r._status=(r['月份']==='待確認'||r['型態']==='待出貨')?'待確認':'已出貨';});
+  SALES_ALL.forEach(r=>{r._status=(r['月份']==='待確認'||r['型態']==='待出貨')?'待出貨':'已出貨';});
 
   let data=SALES_ALL.slice();
   if(src)data=data.filter(r=>r['_src']===src);
@@ -766,7 +766,7 @@ function refreshSalesIEA(){
 
   // KPI 只算已出貨（避免待確認污染數字）
   const confirmed=data.filter(r=>r._status==='已出貨');
-  const pending=data.filter(r=>r._status==='待確認');
+  const pending=data.filter(r=>r._status==='待出貨');
   const totalAmt=confirmed.reduce((s,r)=>s+(r['合計']||0),0);
   const totalCost=confirmed.reduce((s,r)=>s+(r['成本小計']||0),0);
   const totalProfit=confirmed.reduce((s,r)=>s+(r['毛利']||0),0);
@@ -777,7 +777,7 @@ function refreshSalesIEA(){
   // 待確認橘色提示
   const pendHTML=pending.length>0?`
     <div class="pipeline-banner" style="background:#fff7ed;border-color:#f59e0b;margin-bottom:12px">
-      <h3>🟠 待確認訂單（已下單、未出貨/未收款，不列入下方 KPI）</h3>
+      <h3>🟠 待出貨訂單（已下單、未出貨/未收款，不列入下方 KPI）</h3>
       <div class="pipe-val">共 ${pending.length} 筆 ｜ 預估銷貨 <b>${NT(pendAmt)}</b> ｜ 預估毛利 <b>${NT(pendProfit)}</b></div>
     </div>`:'';
   // 插在 KPI 上方
@@ -795,9 +795,9 @@ function refreshSalesIEA(){
     const mr=(typeof r['毛利率']==='number')?r['毛利率']:parseFloat(r['毛利率'])||0;
     const cls=mr>=20?'pos':(mr>=0?'':'neg');
     const srcTag=r['_src']==='HIST'?'<span style="background:#e5e7eb;color:#6b7280;padding:2px 6px;border-radius:4px;font-size:11px">舊</span>':'<span style="background:#dbeafe;color:#1e40af;padding:2px 6px;border-radius:4px;font-size:11px">IEA</span>';
-    const statusTag=r._status==='待確認'?' <span style="background:#fed7aa;color:#c2410c;padding:2px 6px;border-radius:4px;font-size:11px">待確認</span>':'';
-    const rowBg=r._status==='待確認'?' style="background:#fffbeb"':'';
-    h+=`<tr${rowBg}><td>${srcTag}${statusTag}</td><td>${(r['年度']||'').replace('年','')}/${(r['月份']||'').replace('月','')}</td><td>${r['單號']||''}</td><td><span class="${custTag(r['客戶'])}">${r['客戶']||''}</span></td><td>${r['產品代號']||''}</td><td>${r['產品名稱']||''}</td><td class="num">${(r['數量']||0).toLocaleString()}</td><td class="num">${NT(r['單價']||0)}</td><td class="num">${NT(r['合計']||0)}</td><td class="num">${NT(r['成本小計']||0)}</td><td class="num">${NT(r['毛利']||0)}</td><td class="num ${cls}">${mr.toFixed(2)}%</td></tr>`;
+    const statusTag=r._status==='待出貨'?' <span style="background:#fed7aa;color:#c2410c;padding:2px 6px;border-radius:4px;font-size:11px">待出貨</span>':'';
+    const rowBg=r._status==='待出貨'?' style="background:#fffbeb"':'';
+    h+=`<tr${rowBg}><td>${srcTag}${statusTag}</td><td>${(r['年度']||'').replace('年','')}/${(r['月份']||'').replace('月','').replace('待確認','待出貨')}</td><td>${r['單號']||''}</td><td><span class="${custTag(r['客戶'])}">${r['客戶']||''}</span></td><td>${r['產品代號']||''}</td><td>${r['產品名稱']||''}</td><td class="num">${(r['數量']||0).toLocaleString()}</td><td class="num">${NT(r['單價']||0)}</td><td class="num">${NT(r['合計']||0)}</td><td class="num">${NT(r['成本小計']||0)}</td><td class="num">${NT(r['毛利']||0)}</td><td class="num ${cls}">${mr.toFixed(2)}%</td></tr>`;
   });
   h+='</tbody></table>';
   document.getElementById('sales_iea-table').innerHTML=h;
