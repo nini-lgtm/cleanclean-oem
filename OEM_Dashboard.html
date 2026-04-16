@@ -334,6 +334,7 @@ tr:hover td{background:#f8fafc}
 <select id="fsi-cust" class="filter-select" onchange="refreshSalesIEA()"><option value="">全部</option></select>
 <input type="text" id="fsi-search" class="search-box" placeholder="搜尋產品 / 單號..." oninput="refreshSalesIEA()">
 </div>
+<div id="sales_iea-banners"></div>
 <div class="kpi-row" id="sikpi-row"></div>
 <div class="table-card"><h3>銷售明細 IEA</h3><div id="sales_iea-table"></div></div>
 </div>
@@ -840,15 +841,15 @@ function refreshSalesIEA(){
       <h3>🔴 已出貨未收款（應收帳款）</h3>
       <div class="pipe-val">共 ${unpaidRecs.length} 筆 ｜ 未收金額 <b style="color:#dc2626">${NT(unpaidTotal)}</b> ｜ 可至「應收帳款」頁查看明細</div>
     </div>`:'';
-  // 插在 KPI 上方
-  document.getElementById('sikpi-row').innerHTML=pendHTML+unpaidHTML+`
-    <div class="kpi-row" style="display:contents">
+  // Banner 放全寬區（不擠在 KPI 列）
+  document.getElementById('sales_iea-banners').innerHTML=pendHTML+unpaidHTML;
+  // KPI 列只放 KPI 卡片
+  document.getElementById('sikpi-row').innerHTML=`
     <div class="kpi-card"><div class="kpi-label">銷貨金額（已出貨）</div><div class="kpi-value">${NT(totalAmt)}</div></div>
     <div class="kpi-card"><div class="kpi-label">銷貨成本</div><div class="kpi-value">${NT(totalCost)}</div></div>
     <div class="kpi-card"><div class="kpi-label">毛利</div><div class="kpi-value">${NT(totalProfit)}</div></div>
     <div class="kpi-card"><div class="kpi-label">毛利率</div><div class="kpi-value">${margin.toFixed(2)}%</div></div>
-    <div class="kpi-card"><div class="kpi-label">已出貨筆數</div><div class="kpi-value">${confirmed.length}筆</div></div>
-    </div>`;
+    <div class="kpi-card"><div class="kpi-label">已出貨筆數</div><div class="kpi-value">${confirmed.length}筆</div></div>`;
 
   let h='<table><thead><tr><th>來源</th><th>年月</th><th>單號</th><th>客戶</th><th>產品代號</th><th>產品名稱</th><th class="num">數量</th><th class="num">單價</th><th class="num">合計</th><th class="num">成本小計</th><th class="num">毛利</th><th class="num">毛利率</th></tr></thead><tbody>';
   data.sort((a,b)=>((b['年度']||'')+(b['月份']||'')+(b['單號']||'')).localeCompare((a['年度']||'')+(a['月份']||'')+(a['單號']||''))).forEach(r=>{
