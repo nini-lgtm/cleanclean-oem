@@ -724,11 +724,15 @@ const SALES_HIST=(function(){
   });
   return out;
 })();
-// IEA 資料補上 年度/月份（從單號推）
+// IEA 資料補上 年度/月份（單號格式：民國年3位+月2位+日2位+序號4位，如 11504090010）
 const SALES_IEA_TAGGED=SALES_IEA.map(r=>{
   const no=String(r['單號']||'');
-  const m=no.match(/(\d{4})(\d{2})/);
-  return Object.assign({},r,{'_src':'IEA','年度':m?m[1]+'年':'','月份':m?m[2]+'月':''});
+  const m=no.match(/^(\d{3})(\d{2})(\d{2})/);
+  return Object.assign({},r,{
+    '_src':'IEA',
+    '年度':m?(parseInt(m[1])+1911)+'年':'',
+    '月份':m?m[2]+'月':'',
+  });
 });
 const SALES_ALL=SALES_HIST.concat(SALES_IEA_TAGGED);
 
