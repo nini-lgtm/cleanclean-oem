@@ -244,8 +244,7 @@ tr:hover td{background:#f8fafc}
 <button class="nav-btn active" onclick="showPage('overview',this)">總覽</button>
 <button class="nav-btn" onclick="showPage('customer',this)">客戶分析</button>
 <button class="nav-btn" onclick="showPage('matcost',this)">商品成本</button>
-<button class="nav-btn" onclick="showPage('detail',this)">銷售明細</button>
-<button class="nav-btn" onclick="showPage('sales_iea',this)">銷售明細 IEA <span style="font-size:10px;color:#f59e0b;margin-left:4px">範本</span></button>
+<button class="nav-btn" onclick="showPage('sales_iea',this)">銷售明細</button>
 <button class="nav-btn" onclick="showPage('orders',this)">訂購單</button>
 <button class="nav-btn" onclick="showPage('receivables',this)">應收帳款</button>
 </nav>
@@ -315,11 +314,11 @@ tr:hover td{background:#f8fafc}
 <div class="table-card"><h3>已入帳銷售明細</h3><div class="subtitle">僅顯示已確認月份的訂單</div><div id="detail-table"></div></div>
 </div>
 
-<!-- PAGE: 銷售明細 IEA (範本) -->
+<!-- PAGE: 銷售明細（以 IEA 為主） -->
 <div id="page-sales_iea" class="page">
-<div class="pipeline-banner" style="background:#fef3c7;border-color:#f59e0b">
-<h3>📋 範本預覽（含舊資料自動合併）</h3>
-<div class="pipe-val">歷史銷貨（HIST-）+ IEA 匯入，統一檢視。原「銷售明細」頁不動。</div>
+<div class="pipeline-banner" style="background:#eff6ff;border-color:#3b82f6">
+<h3>📋 銷售明細（舊資料 + IEA 合併檢視）</h3>
+<div class="pipe-val">2025/08 起由 IEA 系統產出發票，2025/07 之前為舊資料自動轉換。</div>
 </div>
 <div id="sales_iea-recon" style="margin-bottom:12px"></div>
 <div class="filters">
@@ -655,10 +654,10 @@ function refresh(){
   const unpaidTotal=unpaidRecv.reduce((s,r)=>s+(r['未收金額']||0),0);
   let bannerHTML='';
   if(pendOrders.length>0){
-    bannerHTML+=`<div class="pipeline-banner" onclick="document.querySelectorAll('#sec-oem .nav-btn')[5].click()" style="cursor:pointer"><h3>🟠 待出貨訂單（未納入下方計算 ｜ 點我查看）</h3><div class="pipe-val">共 ${pendOrders.length} 筆 ｜ 預估銷貨 <b>${NT(pendRev)}</b> ｜ 預估毛利 <b>${NT(pendProfit)}</b></div></div>`;
+    bannerHTML+=`<div class="pipeline-banner" onclick="document.querySelectorAll('#sec-oem .nav-btn')[4].click()" style="cursor:pointer"><h3>🟠 待出貨訂單（未納入下方計算 ｜ 點我查看）</h3><div class="pipe-val">共 ${pendOrders.length} 筆 ｜ 預估銷貨 <b>${NT(pendRev)}</b> ｜ 預估毛利 <b>${NT(pendProfit)}</b></div></div>`;
   }
   if(unpaidRecv.length>0){
-    bannerHTML+=`<div class="pipeline-banner" onclick="document.querySelectorAll('#sec-oem .nav-btn')[6].click()" style="cursor:pointer;background:#fef2f2;border-color:#ef4444;margin-top:12px"><h3>🔴 已銷未收款（應收帳款 ｜ 點我查看）</h3><div class="pipe-val">共 ${unpaidRecv.length} 筆 ｜ 未收金額 <b style="color:#dc2626">${NT(unpaidTotal)}</b></div></div>`;
+    bannerHTML+=`<div class="pipeline-banner" onclick="document.querySelectorAll('#sec-oem .nav-btn')[5].click()" style="cursor:pointer;background:#fef2f2;border-color:#ef4444;margin-top:12px"><h3>🔴 已銷未收款（應收帳款 ｜ 點我查看）</h3><div class="pipe-val">共 ${unpaidRecv.length} 筆 ｜ 未收金額 <b style="color:#dc2626">${NT(unpaidTotal)}</b></div></div>`;
   }
   document.getElementById('pipeline-summary').innerHTML=bannerHTML;
   makeKPI('kpi-row',filtered);
