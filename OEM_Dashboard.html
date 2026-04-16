@@ -247,6 +247,7 @@ tr:hover td{background:#f8fafc}
 <button class="nav-btn" onclick="showPage('detail',this)">銷售明細</button>
 <button class="nav-btn" onclick="showPage('sales_iea',this)">銷售明細 IEA <span style="font-size:10px;color:#f59e0b;margin-left:4px">範本</span></button>
 <button class="nav-btn" onclick="showPage('orders',this)">訂購單</button>
+<button class="nav-btn" onclick="showPage('receivables',this)">應收帳款</button>
 </nav>
 
 <!-- PAGE 1: 總覽 -->
@@ -354,6 +355,24 @@ tr:hover td{background:#f8fafc}
 <div class="kpi-row" id="okpi-row"></div>
 <div class="table-card"><h3>訂購單明細</h3><div id="orders-table"></div></div>
 </div>
+
+<!-- PAGE: 應收帳款 -->
+<div id="page-receivables" class="page">
+<div class="pipeline-banner" style="background:#fef3c7;border-color:#f59e0b">
+<h3>💰 應收帳款（已銷貨、尚未收款）</h3>
+<div class="pipe-val">資料來源：OEM 應收帳款狀況 GB.xlsx ｜「結帳日期」有填 = 已結清，未填 = 未結清</div>
+</div>
+<div class="filters">
+<span class="filter-label">結清狀態</span>
+<select id="fr-status" class="filter-select" onchange="refreshReceivables()"><option value="未結清" selected>未結清</option><option value="已結清">已結清</option><option value="">全部</option></select>
+<span class="filter-label">客戶</span>
+<select id="fr-cust" class="filter-select" onchange="refreshReceivables()"><option value="">全部</option></select>
+<input type="text" id="fr-search" class="search-box" placeholder="搜尋單號 / 發票..." oninput="refreshReceivables()">
+</div>
+<div class="kpi-row" id="rkpi-row"></div>
+<div class="table-card"><h3>應收帳款明細</h3><div id="recv-table"></div></div>
+</div>
+
 </div>
 
 <!-- ==================== SECTION: OEM 庫存 ==================== -->
@@ -475,6 +494,10 @@ const PC=RAW.procurement||[];
 const INV=RAW.inventory||[];
 const SALES_IEA=RAW.sales_iea||[];
 const ORDERS=RAW.orders||[];
+const RECEIVABLES=RAW.receivables||[];
+// 未收款 lookup：單號 → 未收金額
+const RECV_UNPAID={};
+RECEIVABLES.forEach(r=>{if((r['未收金額']||0)>0)RECV_UNPAID[r['單號']]=r['未收金額'];});
 
 const CONFIRMED=S.filter(r=>r['月份']!=='待確認');
 const PENDING=S.filter(r=>r['月份']==='待確認');
@@ -570,7 +593,7 @@ function showPage(id,btn){
   document.getElementById('page-'+id).classList.add('active');
   document.querySelectorAll('#sec-oem .nav-btn').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
-  if(id==='customer')refreshCustomer();if(id==='matcost')refreshMatCost();if(id==='detail')refreshDetail();if(id==='sales_iea')refreshSalesIEA();if(id==='orders')refreshOrders();
+  if(id==='customer')refreshCustomer();if(id==='matcost')refreshMatCost();if(id==='detail')refreshDetail();if(id==='sales_iea')refreshSalesIEA();if(id==='orders')refreshOrders();if(id==='receivables')refreshReceivables();
 }
 
 // ===== HOME =====
@@ -623,9 +646,21 @@ function refresh(){
   });
   const pendRev=pendOrders.reduce((s,r)=>s+(r['合計']||0),0);
   const pendProfit=pendOrders.reduce((s,r)=>s+(r['毛利']||0),0);
+  // 應收帳款（已銷未收）
+  const unpaidRecv=RECEIVABLES.filter(r=>{
+    if(r['結清'])return false;
+    if(c&&r['客戶']!==c)return false;
+    return (r['未收金額']||0)>0;
+  });
+  const unpaidTotal=unpaidRecv.reduce((s,r)=>s+(r['未收金額']||0),0);
+  let bannerHTML='';
   if(pendOrders.length>0){
-    document.getElementById('pipeline-summary').innerHTML=`<div class="pipeline-banner" onclick="document.querySelectorAll('#sec-oem .nav-btn')[5].click()" style="cursor:pointer"><h3>🟠 待出貨訂單（未納入下方計算 ｜ 點我查看）</h3><div class="pipe-val">共 ${pendOrders.length} 筆 ｜ 預估銷貨 <b>${NT(pendRev)}</b> ｜ 預估毛利 <b>${NT(pendProfit)}</b></div></div>`;
-  }else{document.getElementById('pipeline-summary').innerHTML='';}
+    bannerHTML+=`<div class="pipeline-banner" onclick="document.querySelectorAll('#sec-oem .nav-btn')[5].click()" style="cursor:pointer"><h3>🟠 待出貨訂單（未納入下方計算 ｜ 點我查看）</h3><div class="pipe-val">共 ${pendOrders.length} 筆 ｜ 預估銷貨 <b>${NT(pendRev)}</b> ｜ 預估毛利 <b>${NT(pendProfit)}</b></div></div>`;
+  }
+  if(unpaidRecv.length>0){
+    bannerHTML+=`<div class="pipeline-banner" onclick="document.querySelectorAll('#sec-oem .nav-btn')[6].click()" style="cursor:pointer;background:#fef2f2;border-color:#ef4444;margin-top:12px"><h3>🔴 已銷未收款（應收帳款 ｜ 點我查看）</h3><div class="pipe-val">共 ${unpaidRecv.length} 筆 ｜ 未收金額 <b style="color:#dc2626">${NT(unpaidTotal)}</b></div></div>`;
+  }
+  document.getElementById('pipeline-summary').innerHTML=bannerHTML;
   makeKPI('kpi-row',filtered);
 
   destroyChart('line');
@@ -797,8 +832,17 @@ function refreshSalesIEA(){
       <h3>🟠 待出貨訂單（已下單、未出貨/未收款，不列入下方 KPI）</h3>
       <div class="pipe-val">共 ${pending.length} 筆 ｜ 預估銷貨 <b>${NT(pendAmt)}</b> ｜ 預估毛利 <b>${NT(pendProfit)}</b></div>
     </div>`:'';
+
+  // 未收款紅色提示（已出貨但未收款）
+  const unpaidRecs=confirmed.filter(r=>(RECV_UNPAID[r['單號']]||0)>0);
+  const unpaidTotal=unpaidRecs.reduce((s,r)=>s+(RECV_UNPAID[r['單號']]||0),0);
+  const unpaidHTML=unpaidRecs.length>0?`
+    <div class="pipeline-banner" style="background:#fef2f2;border-color:#ef4444;margin-bottom:12px">
+      <h3>🔴 已出貨未收款（應收帳款）</h3>
+      <div class="pipe-val">共 ${unpaidRecs.length} 筆 ｜ 未收金額 <b style="color:#dc2626">${NT(unpaidTotal)}</b> ｜ 可至「應收帳款」頁查看明細</div>
+    </div>`:'';
   // 插在 KPI 上方
-  document.getElementById('sikpi-row').innerHTML=pendHTML+`
+  document.getElementById('sikpi-row').innerHTML=pendHTML+unpaidHTML+`
     <div class="kpi-row" style="display:contents">
     <div class="kpi-card"><div class="kpi-label">銷貨金額（已出貨）</div><div class="kpi-value">${NT(totalAmt)}</div></div>
     <div class="kpi-card"><div class="kpi-label">銷貨成本</div><div class="kpi-value">${NT(totalCost)}</div></div>
@@ -813,8 +857,10 @@ function refreshSalesIEA(){
     const cls=mr>=20?'pos':(mr>=0?'':'neg');
     const srcTag=r['_src']==='HIST'?'<span style="background:#e5e7eb;color:#6b7280;padding:2px 6px;border-radius:4px;font-size:11px">舊</span>':'<span style="background:#dbeafe;color:#1e40af;padding:2px 6px;border-radius:4px;font-size:11px">IEA</span>';
     const statusTag=r._status==='待出貨'?' <span style="background:#fed7aa;color:#c2410c;padding:2px 6px;border-radius:4px;font-size:11px">待出貨</span>':'';
-    const rowBg=r._status==='待出貨'?' style="background:#fffbeb"':'';
-    h+=`<tr${rowBg}><td>${srcTag}${statusTag}</td><td>${(r['年度']||'').replace('年','')}/${(r['月份']||'').replace('月','').replace('待確認','待出貨')}</td><td>${r['單號']||''}</td><td><span class="${custTag(r['客戶'])}">${r['客戶']||''}</span></td><td>${r['產品代號']||''}</td><td>${r['產品名稱']||''}</td><td class="num">${(r['數量']||0).toLocaleString()}</td><td class="num">${NT(r['單價']||0)}</td><td class="num">${NT(r['合計']||0)}</td><td class="num">${NT(r['成本小計']||0)}</td><td class="num">${NT(r['毛利']||0)}</td><td class="num ${cls}">${mr.toFixed(2)}%</td></tr>`;
+    const unpaidAmt=RECV_UNPAID[r['單號']]||0;
+    const unpaidTag=unpaidAmt>0?` <span style="background:#fecaca;color:#b91c1c;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:600" title="未收金額 ${NT(unpaidAmt)}">未收款</span>`:'';
+    const rowBg=r._status==='待出貨'?' style="background:#fffbeb"':(unpaidAmt>0?' style="background:#fef2f2"':'');
+    h+=`<tr${rowBg}><td>${srcTag}${statusTag}${unpaidTag}</td><td>${(r['年度']||'').replace('年','')}/${(r['月份']||'').replace('月','').replace('待確認','待出貨')}</td><td>${r['單號']||''}</td><td><span class="${custTag(r['客戶'])}">${r['客戶']||''}</span></td><td>${r['產品代號']||''}</td><td>${r['產品名稱']||''}</td><td class="num">${(r['數量']||0).toLocaleString()}</td><td class="num">${NT(r['單價']||0)}</td><td class="num">${NT(r['合計']||0)}</td><td class="num">${NT(r['成本小計']||0)}</td><td class="num">${NT(r['毛利']||0)}</td><td class="num ${cls}">${mr.toFixed(2)}%</td></tr>`;
   });
   h+='</tbody></table>';
   document.getElementById('sales_iea-table').innerHTML=h;
@@ -864,6 +910,49 @@ function refreshOrders(){
   });
   h+='</tbody></table>';
   document.getElementById('orders-table').innerHTML=h;
+}
+
+// ===== RECEIVABLES (應收帳款) =====
+let _rInit=false;
+function initReceivables(){
+  if(_rInit)return;_rInit=true;
+  const custs=[...new Set(RECEIVABLES.map(r=>r['客戶']).filter(Boolean))].sort();
+  const sel=document.getElementById('fr-cust');
+  custs.forEach(c=>sel.innerHTML+=`<option value="${c}">${c}</option>`);
+}
+function refreshReceivables(){
+  initReceivables();
+  const st=document.getElementById('fr-status').value;
+  const c=document.getElementById('fr-cust').value;
+  const q=(document.getElementById('fr-search').value||'').toLowerCase();
+  let data=RECEIVABLES.slice();
+  if(st==='未結清')data=data.filter(r=>!r['結清']);
+  else if(st==='已結清')data=data.filter(r=>r['結清']);
+  if(c)data=data.filter(r=>r['客戶']===c);
+  if(q)data=data.filter(r=>((r['單號']||'')+(r['發票號碼']||'')+(r['客戶']||'')).toLowerCase().includes(q));
+
+  const totalRecv=data.reduce((s,r)=>s+(r['應收金額']||0),0);
+  const totalPaid=data.reduce((s,r)=>s+(r['已收金額']||0),0);
+  const totalUnpaid=data.reduce((s,r)=>s+(r['未收金額']||0),0);
+  const unpaidCnt=data.filter(r=>!r['結清']).length;
+  const paidCnt=data.filter(r=>r['結清']).length;
+  document.getElementById('rkpi-row').innerHTML=`
+    <div class="kpi-card"><div class="kpi-label">應收總額</div><div class="kpi-value">${NT(totalRecv)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">已收金額</div><div class="kpi-value">${NT(totalPaid)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">未收金額</div><div class="kpi-value" style="color:#dc2626">${NT(totalUnpaid)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">未結清 / 已結清</div><div class="kpi-value">${unpaidCnt} / ${paidCnt}</div></div>`;
+
+  let h='<table><thead><tr><th>狀態</th><th>單據日期</th><th>單號</th><th>單據類別</th><th>客戶</th><th>發票號碼</th><th class="num">應收金額</th><th class="num">已收金額</th><th class="num">未收金額</th><th>結帳日期</th><th>付款方式</th></tr></thead><tbody>';
+  data.sort((a,b)=>(b['單據日期']||'').localeCompare(a['單據日期']||'')).forEach(r=>{
+    const cleared=r['結清'];
+    const rowBg=!cleared?' style="background:#fef2f2"':'';
+    const stTag=cleared
+      ?'<span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600">已結清</span>'
+      :'<span style="background:#fecaca;color:#b91c1c;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600">未結清</span>';
+    h+=`<tr${rowBg}><td>${stTag}</td><td>${r['單據日期']||''}</td><td>${r['單號']||''}</td><td>${r['單據類別']||''}</td><td><span class="${custTag(r['客戶'])}">${r['客戶']||''}</span></td><td>${r['發票號碼']||'-'}</td><td class="num">${NT(r['應收金額']||0)}</td><td class="num">${NT(r['已收金額']||0)}</td><td class="num" style="color:${(r['未收金額']||0)>0?'#dc2626':'inherit'};font-weight:${(r['未收金額']||0)>0?'600':'normal'}">${NT(r['未收金額']||0)}</td><td>${r['結帳日期']||'-'}</td><td>${r['付款方式']||'-'}</td></tr>`;
+  });
+  h+='</tbody></table>';
+  document.getElementById('recv-table').innerHTML=h;
 }
 
 // ===== INVENTORY =====
