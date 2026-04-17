@@ -262,8 +262,8 @@ tr:hover td{background:#f8fafc}
 <div id="pipeline-summary"></div>
 <div class="kpi-row" id="kpi-row"></div>
 <div class="chart-grid">
-<div class="chart-card full"><h3>月份淨利趨勢（近兩年）</h3><canvas id="chartLine"></canvas></div>
-<div class="chart-card"><h3>各年度營收與淨利</h3><canvas id="chartBar"></canvas></div>
+<div class="chart-card full"><h3>月份毛利趨勢（近兩年）</h3><canvas id="chartLine"></canvas></div>
+<div class="chart-card"><h3>各年度營收與毛利</h3><canvas id="chartBar"></canvas></div>
 <div class="chart-card"><h3>客戶營收佔比</h3><canvas id="chartDonut"></canvas></div>
 </div>
 </div>
@@ -511,6 +511,7 @@ function PCT(v){return (v*100).toFixed(1)+'%';}
 function pctCls(v){return v>=.2?'pct-green':v>=.1?'pct-orange':'pct-red';}
 function custTag(c){return c==='阿清'?'tag tag-aq':c==='蹦闆'?'tag tag-bb':'tag tag-mz';}
 function filterConfirmed(y,m,c){return CONFIRMED.filter(r=>{if(y&&r['年度']!==y)return false;if(m&&r['月份']!==m)return false;if(c&&r['OEM客戶']!==c)return false;return true;});}
+
 function destroyChart(k){if(charts[k]){charts[k].destroy();delete charts[k];}}
 
 function npStatusTag(s){
@@ -599,9 +600,9 @@ function showPage(id,btn){
 // ===== HOME =====
 function refreshHome(){
   const thisYear='2026年';
-  const yearData=CONFIRMED.filter(r=>r['年度']===thisYear);
-  const rev=yearData.reduce((s,r)=>s+r['銷貨收入'],0);
-  const profit=yearData.reduce((s,r)=>s+r['淨利'],0);
+  const yearData=filterSales(thisYear,'','');
+  const rev=yearData.reduce((s,r)=>s+(r['合計']||r['銷貨收入']||0),0);
+  const profit=yearData.reduce((s,r)=>s+(r['毛利']||r['淨利']||0),0);
   const margin=rev?profit/rev:0;
   const pendRev=ORDERS.filter(r=>r['狀態']==='待出貨').reduce((s,r)=>s+(r['合計']||0),0);
   const allNP=[...NP,...localNP];
@@ -610,9 +611,9 @@ function refreshHome(){
   const pcActive=allPC.filter(r=>!r['進度'].includes('進貨')&&!r['進度'].includes('出貨')&&!r['進度'].includes('完成')).length;
 
   document.getElementById('home-kpi').innerHTML=`
-    <div class="kpi-card"><div class="kpi-label">本年營收</div><div class="kpi-value">${NT(rev)}</div></div>
-    <div class="kpi-card"><div class="kpi-label">本年淨利</div><div class="kpi-value">${NT(profit)}</div></div>
-    <div class="kpi-card"><div class="kpi-label">本年淨利率</div><div class="kpi-value">${PCT(margin)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">本年營收（含稅）</div><div class="kpi-value">${NT(rev)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">本年毛利</div><div class="kpi-value">${NT(profit)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">本年毛利率</div><div class="kpi-value">${PCT(margin)}</div></div>
     <div class="kpi-card"><div class="kpi-label">待出貨金額</div><div class="kpi-value">${NT(pendRev)}</div></div>
     <div class="kpi-card"><div class="kpi-label">進行中項目</div><div class="kpi-value">${npActive+pcActive} 項</div></div>`;
 
@@ -625,11 +626,12 @@ function refreshHome(){
 // ===== OEM OVERVIEW =====
 function makeKPI(elId,data){
   const el=document.getElementById(elId);
-  const rev=data.reduce((s,r)=>s+r['銷貨收入'],0);
-  const cost=data.reduce((s,r)=>s+r['銷貨成本'],0);
-  const profit=data.reduce((s,r)=>s+r['淨利'],0);
+  // 支援舊欄位名和新欄位名（合併用）
+  const rev=data.reduce((s,r)=>s+(r['合計']||r['銷貨收入']||0),0);
+  const cost=data.reduce((s,r)=>s+(r['成本小計']||r['銷貨成本']||0),0);
+  const profit=data.reduce((s,r)=>s+(r['毛利']||r['淨利']||0),0);
   const margin=rev?profit/rev:0;
-  const items=[{label:'銷貨收入',val:NT(rev)},{label:'銷貨成本',val:NT(cost)},{label:'淨利',val:NT(profit)},{label:'淨利率',val:PCT(margin)},{label:'訂單筆數',val:data.length+'筆'}];
+  const items=[{label:'銷貨收入（含稅）',val:NT(rev)},{label:'銷貨成本',val:NT(cost)},{label:'毛利',val:NT(profit)},{label:'毛利率',val:PCT(margin)},{label:'出貨筆數',val:data.length+'筆'}];
   el.innerHTML=items.map(it=>`<div class="kpi-card"><div class="kpi-label">${it.label}</div><div class="kpi-value">${it.val}</div></div>`).join('');
 }
 
@@ -637,7 +639,7 @@ function refresh(){
   const y=document.getElementById('f-year').value;
   const m=document.getElementById('f-month').value;
   const c=document.getElementById('f-cust').value;
-  const filtered=filterConfirmed(y,m,c);
+  const filtered=filterSales(y,m,c);
   // 待出貨：改讀訂購單（客戶下單未出貨），非舊 sales 待確認
   const pendOrders=ORDERS.filter(r=>{
     if(r['狀態']!=='待出貨')return false;
@@ -666,17 +668,17 @@ function refresh(){
   destroyChart('line');
   const recentYears=['2025年','2026年'];
   const lineData={};
-  const lineFiltered=CONFIRMED.filter(r=>{if(m&&r['月份']!==m)return false;if(c&&r['OEM客戶']!==c)return false;return recentYears.includes(r['年度']);});
-  lineFiltered.forEach(r=>{const yr=r['年度'],mo=r['月份'];if(!lineData[yr])lineData[yr]={};lineData[yr][mo]=(lineData[yr][mo]||0)+r['淨利'];});
+  const lineFiltered=SALES_CONFIRMED.filter(r=>{if(m&&r['月份']!==m)return false;if(c&&r['客戶']!==c)return false;return recentYears.includes(r['年度']);});
+  lineFiltered.forEach(r=>{const yr=r['年度'],mo=r['月份'];if(!lineData[yr])lineData[yr]={};lineData[yr][mo]=(lineData[yr][mo]||0)+(r['毛利']||r['淨利']||0);});
   const lineDs=recentYears.filter(yr=>lineData[yr]).map((yr,i)=>({label:yr,data:MONTHS.map(m=>lineData[yr]?.[m]||null),borderColor:i===0?'#94a3b8':'#3b82f6',backgroundColor:i===0?'#94a3b822':'#3b82f622',tension:.3,fill:false,spanGaps:true,pointRadius:4,borderWidth:i===0?2:3}));
   charts.line=new Chart(document.getElementById('chartLine'),{type:'line',data:{labels:MONTHS,datasets:lineDs},options:{responsive:true,maintainAspectRatio:true,aspectRatio:3,plugins:{legend:{position:'top'},datalabels:{display:false}},scales:{y:{ticks:{callback:v=>NT(v)}}}}});
 
   destroyChart('bar');
   const bYears=[...new Set(filtered.map(r=>r['年度']))].sort();
-  charts.bar=new Chart(document.getElementById('chartBar'),{type:'bar',data:{labels:bYears,datasets:[{label:'銷貨收入',data:bYears.map(yr=>filtered.filter(r=>r['年度']===yr).reduce((s,r)=>s+r['銷貨收入'],0)),backgroundColor:'#3b82f6'},{label:'淨利',data:bYears.map(yr=>filtered.filter(r=>r['年度']===yr).reduce((s,r)=>s+r['淨利'],0)),backgroundColor:'#22c55e'}]},options:{responsive:true,plugins:{legend:{position:'top'},datalabels:{display:false}},scales:{y:{ticks:{callback:v=>NT(v)}}}}});
+  charts.bar=new Chart(document.getElementById('chartBar'),{type:'bar',data:{labels:bYears,datasets:[{label:'銷貨收入',data:bYears.map(yr=>filtered.filter(r=>r['年度']===yr).reduce((s,r)=>s+(r['合計']||r['銷貨收入']||0),0)),backgroundColor:'#3b82f6'},{label:'毛利',data:bYears.map(yr=>filtered.filter(r=>r['年度']===yr).reduce((s,r)=>s+(r['毛利']||r['淨利']||0),0)),backgroundColor:'#22c55e'}]},options:{responsive:true,plugins:{legend:{position:'top'},datalabels:{display:false}},scales:{y:{ticks:{callback:v=>NT(v)}}}}});
 
   destroyChart('donut');
-  const cm={};filtered.forEach(r=>{cm[r['OEM客戶']]=(cm[r['OEM客戶']]||0)+r['銷貨收入'];});
+  const cm={};filtered.forEach(r=>{cm[r['客戶']||r['OEM客戶']]=(cm[r['客戶']||r['OEM客戶']]||0)+(r['合計']||r['銷貨收入']||0);});
   const cl=Object.keys(cm).sort();const totalRev=cl.reduce((s,c)=>s+cm[c],0);
   charts.donut=new Chart(document.getElementById('chartDonut'),{type:'doughnut',data:{labels:cl,datasets:[{data:cl.map(c=>cm[c]),backgroundColor:['#3b82f6','#f59e0b','#8b5cf6']}]},options:{responsive:true,plugins:{legend:{position:'bottom'},datalabels:{display:false},tooltip:{callbacks:{label:ctx=>ctx.label+': '+NT(ctx.raw)+' ('+PCT(ctx.raw/totalRev)+')'}}}}});
 }
@@ -686,16 +688,16 @@ function refreshCustomer(){
   const cust=document.getElementById('fc-cust').value;
   const y=document.getElementById('fc-year').value;
   const m=document.getElementById('fc-month').value;
-  const filtered=filterConfirmed(y,m,cust);
+  const filtered=filterSales(y,m,cust);
   makeKPI('ckpi-row',filtered);
 
   destroyChart('cline');
-  const ld={};filtered.forEach(r=>{const yr=r['年度'];if(!ld[yr])ld[yr]={};ld[yr][r['月份']]=(ld[yr][r['月份']]||0)+r['淨利'];});
+  const ld={};filtered.forEach(r=>{const yr=r['年度'];if(!ld[yr])ld[yr]={};ld[yr][r['月份']]=(ld[yr][r['月份']]||0)+(r['毛利']||r['淨利']||0);});
   const ds=Object.keys(ld).sort().map((yr,i)=>({label:yr,data:MONTHS.map(m=>ld[yr][m]||null),borderColor:COLORS[i],tension:.3,fill:false,spanGaps:true,pointRadius:4}));
   charts.cline=new Chart(document.getElementById('cChartLine'),{type:'line',data:{labels:MONTHS,datasets:ds},options:{responsive:true,plugins:{datalabels:{display:false}},scales:{y:{ticks:{callback:v=>NT(v)}}}}});
 
   destroyChart('cdonut');
-  const pm={};filtered.forEach(r=>{pm[r['產品']]=(pm[r['產品']]||0)+r['銷貨收入'];});
+  const pm={};filtered.forEach(r=>{const p=r['產品名稱']||r['產品']||'';pm[p]=(pm[p]||0)+(r['合計']||r['銷貨收入']||0);});
   const pl=Object.keys(pm).sort((a,b)=>pm[b]-pm[a]);const totalProdRev=pl.reduce((s,p)=>s+pm[p],0);
   charts.cdonut=new Chart(document.getElementById('cChartDonut'),{type:'doughnut',data:{labels:pl,datasets:[{data:pl.map(p=>pm[p]),backgroundColor:COLORS}]},options:{responsive:true,maintainAspectRatio:true,aspectRatio:1.3,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>ctx.label+': '+NT(ctx.raw)}},datalabels:{display:false}}}});
   const legendEl=document.getElementById('cDonutLegend');
@@ -703,14 +705,16 @@ function refreshCustomer(){
 
   destroyChart('cmargin');
   const prodMargin={};
-  filtered.forEach(r=>{const p=r['產品'];if(!prodMargin[p])prodMargin[p]={rev:0,profit:0};prodMargin[p].rev+=r['銷貨收入'];prodMargin[p].profit+=r['淨利'];});
+  filtered.forEach(r=>{const p=r['產品名稱']||r['產品']||'';if(!prodMargin[p])prodMargin[p]={rev:0,profit:0};prodMargin[p].rev+=(r['合計']||r['銷貨收入']||0);prodMargin[p].profit+=(r['毛利']||r['淨利']||0);});
   const mProds=Object.keys(prodMargin).sort((a,b)=>prodMargin[b].rev-prodMargin[a].rev);
   const margins=mProds.map(p=>prodMargin[p].rev?prodMargin[p].profit/prodMargin[p].rev:0);
-  charts.cmargin=new Chart(document.getElementById('cChartMargin'),{type:'bar',data:{labels:mProds,datasets:[{label:'淨利率',data:margins,backgroundColor:margins.map(v=>v>=.2?'#22c55e':v>=.1?'#f59e0b':'#ef4444')}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:true,aspectRatio:Math.max(1.8,3-mProds.length*0.15),plugins:{legend:{display:false},datalabels:{display:true,anchor:'end',align:'end',color:'#1e293b',font:{size:11,weight:'600'},formatter:v=>PCT(v)}},scales:{x:{ticks:{callback:v=>PCT(v)},max:Math.max(...margins)*1.3||0.3}}}});
+  charts.cmargin=new Chart(document.getElementById('cChartMargin'),{type:'bar',data:{labels:mProds,datasets:[{label:'毛利率',data:margins,backgroundColor:margins.map(v=>v>=.2?'#22c55e':v>=.1?'#f59e0b':'#ef4444')}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:true,aspectRatio:Math.max(1.8,3-mProds.length*0.15),plugins:{legend:{display:false},datalabels:{display:true,anchor:'end',align:'end',color:'#1e293b',font:{size:11,weight:'600'},formatter:v=>PCT(v)}},scales:{x:{ticks:{callback:v=>PCT(v)},max:Math.max(...margins)*1.3||0.3}}}});
 
-  let h='<table><thead><tr><th>年度</th><th>月份</th><th>產品</th><th>規格</th><th class="num">數量</th><th class="num">銷貨收入</th><th class="num">銷貨成本</th><th class="num">淨利</th><th class="num">淨利率</th></tr></thead><tbody>';
+  let h='<table><thead><tr><th>年度</th><th>月份</th><th>客戶</th><th>產品名稱</th><th class="num">數量</th><th class="num">銷貨收入（含稅）</th><th class="num">銷貨成本</th><th class="num">毛利</th><th class="num">毛利率</th></tr></thead><tbody>';
   filtered.sort((a,b)=>(b['年度']+b['月份']).localeCompare(a['年度']+a['月份'])).forEach(r=>{
-    h+=`<tr><td>${r['年度']}</td><td>${r['月份']}</td><td>${r['產品']}</td><td>${r['規格']}</td><td class="num">${r['數量'].toLocaleString()}</td><td class="num">${NT(r['銷貨收入'])}</td><td class="num">${NT(r['銷貨成本'])}</td><td class="num">${NT(r['淨利'])}</td><td class="num ${pctCls(r['淨利率'])}">${PCT(r['淨利率'])}</td></tr>`;
+    const rev=r['合計']||r['銷貨收入']||0;const cost=r['成本小計']||r['銷貨成本']||0;
+    const profit=r['毛利']||r['淨利']||0;const mr=rev?profit/rev:0;
+    h+=`<tr><td>${r['年度']}</td><td>${r['月份']}</td><td><span class="${custTag(r['客戶']||r['OEM客戶'])}">${r['客戶']||r['OEM客戶']}</span></td><td>${r['產品名稱']||r['產品']||''}</td><td class="num">${(r['數量']||0).toLocaleString()}</td><td class="num">${NT(rev)}</td><td class="num">${NT(cost)}</td><td class="num">${NT(profit)}</td><td class="num ${pctCls(mr)}">${PCT(mr)}</td></tr>`;
   });
   h+='</tbody></table>';document.getElementById('cust-table').innerHTML=h;
 }
@@ -770,6 +774,10 @@ const SALES_IEA_TAGGED=SALES_IEA.map(r=>{
   });
 });
 const SALES_ALL=SALES_HIST.concat(SALES_IEA_TAGGED);
+// 統一銷貨篩選（舊 + IEA 合併，排除待出貨）
+SALES_ALL.forEach(r=>{r._status=(r['月份']==='待確認'||r['型態']==='待出貨')?'待出貨':'已出貨';});
+const SALES_CONFIRMED=SALES_ALL.filter(r=>r._status==='已出貨');
+function filterSales(y,m,c){return SALES_CONFIRMED.filter(r=>{if(y&&r['年度']!==y)return false;if(m&&r['月份']!==m)return false;if(c&&r['客戶']!==c)return false;return true;});}
 
 let _siInit=false;
 function initSalesIEA(){
