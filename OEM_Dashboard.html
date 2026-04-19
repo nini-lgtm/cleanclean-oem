@@ -1287,13 +1287,13 @@ function refreshBom(){
       const sumTax=kids.reduce((s,c)=>s+((c['採購成本']||0)*1.05),0);
       const custLabel=p?p['客戶']:(kids[0]&&kids[0]['客戶']||'');
       const nameLabel=p?p['產品名稱']:'(無父項)';
-      th+=`<tr class="parent-row"><td>${k}</td><td></td><td>${nameLabel}</td><td><span class="${custTag(custLabel)}" style="font-size:10px">${custLabel||'-'}</span></td><td colspan="2" style="color:var(--text2);font-size:11px;font-weight:500">共 ${kids.length} 項物料</td><td class="num" style="color:${sumTax===0?'var(--text2)':'var(--red)'};font-weight:700">${NT(sumTax)}</td></tr>`;
+      th+=`<tr class="parent-row" style="cursor:pointer" onclick="var s=this.dataset.open==='1';this.dataset.open=s?'0':'1';var n=this.nextElementSibling;while(n&&n.classList.contains('child-row')){n.style.display=s?'none':'';n=n.nextElementSibling;}this.querySelector('.tbl-toggle').style.transform=s?'rotate(-90deg)':'rotate(0)';"><td><span class="tbl-toggle" style="display:inline-block;transition:transform .2s;transform:rotate(-90deg);margin-right:4px;font-size:10px">▾</span>${k}</td><td></td><td>${nameLabel}</td><td><span class="${custTag(custLabel)}" style="font-size:10px">${custLabel||'-'}</span></td><td colspan="2" style="color:var(--text2);font-size:11px;font-weight:500">共 ${kids.length} 項物料</td><td class="num" style="color:${sumTax===0?'var(--text2)':'var(--red)'};font-weight:700">${NT(sumTax)}</td></tr>`;
       kids.forEach((c,ci)=>{
         const [t,cls]=matType(c['產品名稱']);
         const raw=c['採購成本']||0;
         const tax=raw*1.05;
         const lastCls=ci===kids.length-1?' last-child':'';
-        th+=`<tr class="child-row${lastCls}"><td style="font-family:monospace">${c['產品代號']}</td><td><span class="bom-sub-tag ${cls}">${t}</span></td><td>${c['產品名稱']}</td><td></td><td style="color:var(--text2)">${c['供應商']||'-'}</td><td class="num" style="color:var(--text2)">${NT(raw)}</td><td class="num" style="font-weight:600${raw===0?';color:var(--text2)':''}">${NT(tax)}</td></tr>`;
+        th+=`<tr class="child-row${lastCls}" style="display:none"><td style="font-family:monospace">${c['產品代號']}</td><td><span class="bom-sub-tag ${cls}">${t}</span></td><td>${c['產品名稱']}</td><td></td><td style="color:var(--text2)">${c['供應商']||'-'}</td><td class="num" style="color:var(--text2)">${NT(raw)}</td><td class="num" style="font-weight:600${raw===0?';color:var(--text2)':''}">${NT(tax)}</td></tr>`;
       });
     });
     th+='</tbody></table>';
@@ -1328,7 +1328,7 @@ function refreshBom(){
     });
     if(kids.length===0)items='<div class="bom-empty">此群組無子項物料</div>';
     h+=`<div class="bom-card">
-      <div class="bom-head${zero?' zero':''}" onclick="var b=this.nextElementSibling;var t=this.querySelector('.bom-toggle');var open=b.style.display!=='none';b.style.display=open?'none':'block';t.style.transform=open?'rotate(-90deg)':'rotate(0)';this.classList.toggle('collapsed',open)">
+      <div class="bom-head${zero?' zero':''} collapsed" onclick="var b=this.nextElementSibling;var t=this.querySelector('.bom-toggle');var open=b.style.display!=='none';b.style.display=open?'none':'block';t.style.transform=open?'rotate(-90deg)':'rotate(0)';this.classList.toggle('collapsed',open)" style="cursor:pointer">
         <div class="bom-code">${k}</div>
         <div style="flex:1">
           <div class="bom-name">${nameLabel}</div>
@@ -1338,9 +1338,9 @@ function refreshBom(){
           <div class="bom-total-val${zero?' zero':''}">${NT(sumTax)}</div>
           <div class="bom-total-label">含稅總成本</div>
         </div>
-        <div class="bom-toggle">▾</div>
+        <div class="bom-toggle" style="transform:rotate(-90deg)">▾</div>
       </div>
-      <div class="bom-body">${items}</div>
+      <div class="bom-body" style="display:none">${items}</div>
     </div>`;
   });
   document.getElementById('bom-list').innerHTML=h;
