@@ -405,11 +405,17 @@ tr:hover td{background:#f8fafc}
 <h3>📒 月進貨對帳 — 依廠商彙總</h3>
 <div class="pipe-val">用於核對廠商每月開立的發票（金額/數量/單價）｜ 已排除「公司轉進來 V0013」（內部扣庫存用，無發票）</div>
 </div>
-<div class="filters" style="align-items:center">
+<div class="filters" style="align-items:center;gap:8px">
 <span class="filter-label">選擇月份</span>
 <select id="fpa-month" class="filter-select" onchange="refreshPayables()"></select>
 <button id="fpa-only-pending" class="filter-select" onclick="togglePayFilter('pending')" style="cursor:pointer">🔍 只看待核對</button>
 <button id="fpa-only-unpaid" class="filter-select" onclick="togglePayFilter('unpaid')" style="cursor:pointer">🔍 只看待付款</button>
+<div style="margin-left:auto;display:flex;gap:6px;align-items:center">
+<button onclick="cloudPull()" style="background:#3b82f6;color:#fff;border:none;padding:7px 12px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">⬇️ 從雲端下載</button>
+<button onclick="cloudPush()" style="background:#10b981;color:#fff;border:none;padding:7px 12px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">⬆️ 上傳到雲端</button>
+<button onclick="setCloudURL()" style="background:#f1f5f9;color:#475569;border:none;padding:7px 10px;border-radius:6px;font-size:12px;cursor:pointer" title="設定雲端 API 網址">⚙️</button>
+<span id="pa-cloud-status" style="font-size:11px;color:#94a3b8"></span>
+</div>
 </div>
 <div class="kpi-row" id="pa-kpi"></div>
 <div class="kpi-row" id="pa-status-kpi"></div>
@@ -1009,6 +1015,56 @@ function refreshReceivables(){
   document.getElementById('recv-table').innerHTML=h;
 }
 
+// ===== 月進貨對帳 — 雲端同步 (Google Apps Script Web App) =====
+function getCloudURL(){return localStorage.getItem('oem_recon_cloud_url')||'';}
+function setCloudURL(){
+  const cur=getCloudURL();
+  const v=prompt('輸入 Google Apps Script Web App 網址：\n(部署完 Apps Script 後拿到的 https://script.google.com/macros/s/.../exec)',cur);
+  if(v===null)return;
+  localStorage.setItem('oem_recon_cloud_url',v.trim());
+  showPayCloudStatus(v?'已設定雲端網址':'已清除網址');
+}
+function showPayCloudStatus(msg,err){
+  const el=document.getElementById('pa-cloud-status');
+  if(el){el.textContent=msg;el.style.color=err?'#dc2626':'#10b981';
+    setTimeout(()=>{el.textContent=err?msg:'';},err?6000:3000);
+  }
+}
+async function cloudPull(silent){
+  const url=getCloudURL();
+  if(!url){if(!silent)alert('請先點 ⚙️ 設定雲端網址');return;}
+  try{
+    showPayCloudStatus('⏳ 下載中...');
+    const r=await fetch(url,{method:'GET'});
+    const txt=await r.text();
+    const data=JSON.parse(txt||'{}');
+    if(typeof data!=='object')throw new Error('回傳格式錯誤');
+    localStorage.setItem('oem_recon',JSON.stringify(data));
+    showPayCloudStatus('✅ 已從雲端下載');
+    if(typeof refreshPayables==='function'&&document.getElementById('page-payables').classList.contains('active'))refreshPayables();
+  }catch(e){
+    showPayCloudStatus('❌ 下載失敗：'+e.message,true);
+  }
+}
+async function cloudPush(){
+  const url=getCloudURL();
+  if(!url){alert('請先點 ⚙️ 設定雲端網址');return;}
+  try{
+    showPayCloudStatus('⏳ 上傳中...');
+    const data=localStorage.getItem('oem_recon')||'{}';
+    const r=await fetch(url,{
+      method:'POST',
+      headers:{'Content-Type':'text/plain;charset=utf-8'}, // 避免 CORS preflight
+      body:data,
+    });
+    const txt=await r.text();
+    if(!txt.includes('ok'))throw new Error('回傳：'+txt.substring(0,80));
+    showPayCloudStatus('✅ 已上傳到雲端');
+  }catch(e){
+    showPayCloudStatus('❌ 上傳失敗：'+e.message,true);
+  }
+}
+
 // ===== 月進貨對帳 (廠商月結) =====
 const RECEIPTS=RAW.receipts||[];
 const SUPPLIERS=RAW.suppliers||[];
@@ -1044,6 +1100,8 @@ function initPayables(){
   const sel=document.getElementById('fpa-month');
   const sorted=[...months].sort().reverse();
   sorted.forEach(m=>{const cnt=RECEIPTS.filter(r=>(r['進貨日期']||'').substring(0,7).replace('/','-')===m).length;sel.innerHTML+=`<option value="${m}">${m.replace('-','/')}（${cnt}筆）</option>`;});
+  // 開啟頁面時若有設雲端網址，自動下載一次
+  if(getCloudURL())cloudPull(true);
 }
 function togglePayFilter(k){payFilter[k]=!payFilter[k];refreshPayables();}
 function refreshPayables(){
