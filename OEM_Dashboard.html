@@ -1025,8 +1025,10 @@ function loadPayState(){
   Object.keys(s).forEach(k=>{
     const v=s[k];
     if(!v.invoices){
-      v.invoices=[{no:v.invoice_no||'',amt:parseFloat(v.invoice_amt||0)||0,note:v.note||''}];
-      // 留 invoice_no/amt/note 暫不刪，保留向下相容
+      v.invoices=[{no:v.invoice_no||'',date:'',amt:parseFloat(v.invoice_amt||0)||0,note:v.note||''}];
+    }else{
+      // 補齊舊資料缺 date 欄位
+      v.invoices.forEach(inv=>{if(inv.date===undefined)inv.date='';});
     }
   });
   return s;
@@ -1139,10 +1141,12 @@ function refreshPayables(){
         <span style="background:#e2e8f0;color:#475569;padding:2px 8px;border-radius:5px;font-size:11px;font-weight:600">#${idx+1}</span>
         <label style="font-size:12px;color:#475569">📄 號碼</label>
         <input class="pa-inv-no" value="${inv.no||''}" placeholder="EX12345678" style="width:150px;padding:6px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px">
+        <label style="font-size:12px;color:#475569">📅 發票日</label>
+        <input class="pa-inv-date" type="date" value="${inv.date||''}" style="width:140px;padding:6px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px">
         <label style="font-size:12px;color:#475569">💵 金額</label>
         <input class="pa-inv-amt" type="number" value="${inv.amt||''}" placeholder="0" style="width:110px;padding:6px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px">
         <label style="font-size:12px;color:#475569">📝 備註</label>
-        <input class="pa-inv-note" value="${inv.note||''}" placeholder="發票日/開票日" style="width:180px;padding:6px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px">
+        <input class="pa-inv-note" value="${inv.note||''}" placeholder="選填" style="width:140px;padding:6px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px">
         ${invs.length>1?`<button onclick="removeInv('${g.code}','${month}',${idx})" style="background:#fee2e2;color:#b91c1c;border:none;padding:5px 10px;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer">🗑️ 刪</button>`:''}
       </div>`;
     });
@@ -1183,10 +1187,11 @@ function collectInvs(vendor,month){
   const out=[];
   rows.forEach(r=>{
     const no=r.querySelector('.pa-inv-no').value.trim();
+    const date=r.querySelector('.pa-inv-date').value.trim();
     const amt=r.querySelector('.pa-inv-amt').value;
     const note=r.querySelector('.pa-inv-note').value.trim();
-    if(no||amt||note){
-      out.push({no,amt:amt?parseFloat(amt):0,note});
+    if(no||amt||date||note){
+      out.push({no,date,amt:amt?parseFloat(amt):0,note});
     }
   });
   return out;
@@ -1194,20 +1199,20 @@ function collectInvs(vendor,month){
 function syncInvsToState(vendor,month){
   const s=loadPayState();const k=payKey(vendor,month);if(!s[k])s[k]={};
   s[k].invoices=collectInvs(vendor,month);
-  if(!s[k].invoices.length)s[k].invoices=[{no:'',amt:0,note:''}];
+  if(!s[k].invoices.length)s[k].invoices=[{no:'',date:'',amt:0,note:''}];
   savePayState(s);return s;
 }
 function addInv(vendor,month){
   const s=syncInvsToState(vendor,month);
   const k=payKey(vendor,month);
-  s[k].invoices.push({no:'',amt:0,note:''});
+  s[k].invoices.push({no:'',date:'',amt:0,note:''});
   savePayState(s);refreshPayables();
 }
 function removeInv(vendor,month,idx){
   syncInvsToState(vendor,month);
   const s=loadPayState();const k=payKey(vendor,month);
   s[k].invoices.splice(idx,1);
-  if(!s[k].invoices.length)s[k].invoices=[{no:'',amt:0,note:''}];
+  if(!s[k].invoices.length)s[k].invoices=[{no:'',date:'',amt:0,note:''}];
   savePayState(s);refreshPayables();
 }
 function markRecon(vendor,month,doIt){
