@@ -386,7 +386,7 @@ tr:hover td{background:#f8fafc}
 <div id="page-receivables" class="page">
 <div class="pipeline-banner" style="background:#fef3c7;border-color:#f59e0b">
 <h3>💰 應收帳款（已銷貨、尚未收款）</h3>
-<div class="pipe-val">資料來源：OEM 應收帳款狀況 GB.xlsx ｜「結帳日期」有填 = 已結清，未填 = 未結清</div>
+<div class="pipe-val">資料來源：OEM 應收帳款狀況 GB.xlsx ｜「預計付款日」有填 = 已結清，未填 = 未結清</div>
 </div>
 <div class="filters">
 <span class="filter-label">結清狀態</span>
@@ -1002,14 +1002,14 @@ function refreshReceivables(){
     <div class="kpi-card"><div class="kpi-label">未收金額</div><div class="kpi-value" style="color:#dc2626">${NT(totalUnpaid)}</div></div>
     <div class="kpi-card"><div class="kpi-label">未結清 / 已結清</div><div class="kpi-value">${unpaidCnt} / ${paidCnt}</div></div>`;
 
-  let h='<table><thead><tr><th>狀態</th><th>單據日期</th><th>單號</th><th>單據類別</th><th>客戶</th><th>發票號碼</th><th class="num">應收金額</th><th class="num">已收金額</th><th class="num">未收金額</th><th>結帳日期</th><th>付款方式</th></tr></thead><tbody>';
+  let h='<table><thead><tr><th>狀態</th><th>單據日期</th><th>單號</th><th>單據類別</th><th>客戶</th><th>發票號碼</th><th class="num">應收金額</th><th class="num">已收金額</th><th class="num">未收金額</th><th>預計付款日</th><th>付款方式</th></tr></thead><tbody>';
   data.sort((a,b)=>(b['單據日期']||'').localeCompare(a['單據日期']||'')).forEach(r=>{
     const cleared=r['結清'];
     const rowBg=!cleared?' style="background:#fef2f2"':'';
     const stTag=cleared
       ?'<span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600">已結清</span>'
       :'<span style="background:#fecaca;color:#b91c1c;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600">未結清</span>';
-    h+=`<tr${rowBg}><td>${stTag}</td><td>${r['單據日期']||''}</td><td>${r['單號']||''}</td><td>${r['單據類別']||''}</td><td><span class="${custTag(r['客戶'])}">${r['客戶']||''}</span></td><td>${r['發票號碼']||'-'}</td><td class="num">${NT(r['應收金額']||0)}</td><td class="num">${NT(r['已收金額']||0)}</td><td class="num" style="color:${(r['未收金額']||0)>0?'#dc2626':'inherit'};font-weight:${(r['未收金額']||0)>0?'600':'normal'}">${NT(r['未收金額']||0)}</td><td>${r['結帳日期']||'-'}</td><td>${r['付款方式']||'-'}</td></tr>`;
+    h+=`<tr${rowBg}><td>${stTag}</td><td>${r['單據日期']||''}</td><td>${r['單號']||''}</td><td>${r['單據類別']||''}</td><td><span class="${custTag(r['客戶'])}">${r['客戶']||''}</span></td><td>${r['發票號碼']||'-'}</td><td class="num">${NT(r['應收金額']||0)}</td><td class="num">${NT(r['已收金額']||0)}</td><td class="num" style="color:${(r['未收金額']||0)>0?'#dc2626':'inherit'};font-weight:${(r['未收金額']||0)>0?'600':'normal'}">${NT(r['未收金額']||0)}</td><td>${r['預計付款日']||'-'}</td><td>${r['付款方式']||'-'}</td></tr>`;
   });
   h+='</tbody></table>';
   document.getElementById('recv-table').innerHTML=h;
@@ -1048,9 +1048,22 @@ function cleanDrafts(){
   const left=drafts.filter(d=>!excelKeys.has(`${d['月份']}|${d['廠商代號']}|${(d['發票號碼']||'').trim()}`));
   if(left.length<drafts.length)saveDrafts(left);
 }
+// 從廠商付款方式（如「月結30天」）算預計付款日
+function calcDueDate(vendorCode,invoiceDate){
+  if(!invoiceDate)return '';
+  const v=SUPPLIER_MAP[vendorCode];
+  if(!v||!v.pay)return '';
+  const m=String(v.pay).match(/(\d+)/);
+  const days=m?parseInt(m[1]):30;
+  const d=new Date(invoiceDate);
+  if(isNaN(d.getTime()))return '';
+  d.setDate(d.getDate()+days);
+  const y=d.getFullYear(),mo=String(d.getMonth()+1).padStart(2,'0'),da=String(d.getDate()).padStart(2,'0');
+  return `${y}-${mo}-${da}`;
+}
 function addDraftInvoice(vendor,month){
   const drafts=loadDrafts();
-  drafts.push({月份:month,廠商代號:vendor.code,廠商:vendor.name,發票號碼:'',發票日期:'',發票金額:0,狀態:'',結帳日期:'',備註:''});
+  drafts.push({月份:month,廠商代號:vendor.code,廠商:vendor.name,發票號碼:'',發票日期:'',發票金額:0,狀態:'',預計付款日:'',備註:''});
   saveDrafts(drafts);
   refreshPayables();
 }
@@ -1058,6 +1071,16 @@ function updateDraft(idx,field,value){
   const drafts=loadDrafts();
   if(field==='發票金額')value=parseFloat(value)||0;
   drafts[idx][field]=value;
+  // 發票日期改了 → 自動帶入預計付款日（若該欄位為空）
+  if(field==='發票日期' && !drafts[idx]['預計付款日']){
+    const due=calcDueDate(drafts[idx]['廠商代號'],value);
+    if(due){
+      drafts[idx]['預計付款日']=due;
+      saveDrafts(drafts);
+      refreshPayables();
+      return;
+    }
+  }
   saveDrafts(drafts);
   updateDraftCount();
 }
@@ -1244,7 +1267,7 @@ function refreshPayables(){
     tbl+='</tbody></table>';
     // 發票表格（含草稿可編輯）
     const stOptions=['','待核對','已核對','已付款'];
-    let invTbl='<table class="pa-detail-table" style="margin-bottom:14px"><thead><tr><th style="width:40px">#</th><th>📄 發票號碼</th><th>📅 發票日</th><th class="num">💵 發票金額</th><th>狀態</th><th>結帳日</th><th>備註</th><th style="width:80px">操作</th></tr></thead><tbody>';
+    let invTbl='<table class="pa-detail-table" style="margin-bottom:14px"><thead><tr><th style="width:40px">#</th><th>📄 發票號碼</th><th>📅 發票日</th><th class="num">💵 發票金額</th><th>狀態</th><th>預計付款日</th><th>備註</th><th style="width:80px">操作</th></tr></thead><tbody>';
     if(invs.length===0){
       invTbl+='<tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:14px">尚無發票，點下方「+ 新增發票」開始</td></tr>';
     }else{
@@ -1255,7 +1278,16 @@ function refreshPayables(){
           const stColor=st==='已付款'?'#2563eb':(st==='已核對'?'#059669':'#dc2626');
           const stBg=st==='已付款'?'#dbeafe':(st==='已核對'?'#dcfce7':'#fee2e2');
           const stTag=`<span style="background:${stBg};color:${stColor};padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600">${st||'待核對'}</span>`;
-          invTbl+=`<tr><td>#${idx+1}</td><td><b>${inv['發票號碼']||'-'}</b></td><td>${inv['發票日期']||'-'}</td><td class="num"><b>${NT(inv['發票金額']||0)}</b></td><td>${stTag}</td><td>${inv['結帳日期']||'-'}</td><td style="color:#64748b">${inv['備註']||''}</td><td style="color:#10b981;font-size:11px">☁ Excel</td></tr>`;
+          // 預計付款日 顏色標記（已逾期紅 / 7 天內到期橘）
+          const dd=inv['預計付款日'];
+          let dueStyle='';
+          if(dd && inv['狀態']!=='已付款'){
+            const dt=new Date(dd);const today=new Date();today.setHours(0,0,0,0);
+            const diffDays=Math.round((dt-today)/86400000);
+            if(diffDays<0)dueStyle='color:#dc2626;font-weight:700';
+            else if(diffDays<=7)dueStyle='color:#d97706;font-weight:600';
+          }
+          invTbl+=`<tr><td>#${idx+1}</td><td><b>${inv['發票號碼']||'-'}</b></td><td>${inv['發票日期']||'-'}</td><td class="num"><b>${NT(inv['發票金額']||0)}</b></td><td>${stTag}</td><td style="${dueStyle}">${inv['預計付款日']||'-'}</td><td style="color:#64748b">${inv['備註']||''}</td><td style="color:#10b981;font-size:11px">☁ Excel</td></tr>`;
         }else{
           // 草稿：可編輯
           const i=inv._idx;
@@ -1266,7 +1298,7 @@ function refreshPayables(){
             <td><input type="date" value="${inv['發票日期']||''}" oninput="updateDraft(${i},'發票日期',this.value)" style="width:130px;padding:4px 8px;border:1px solid #fdba74;border-radius:5px;font-size:12px"></td>
             <td><input type="number" value="${inv['發票金額']||''}" placeholder="0" oninput="updateDraft(${i},'發票金額',this.value)" style="width:100px;padding:4px 8px;border:1px solid #fdba74;border-radius:5px;font-size:12px;text-align:right"></td>
             <td><select onchange="updateDraft(${i},'狀態',this.value)" style="padding:4px 8px;border:1px solid #fdba74;border-radius:5px;font-size:12px">${stOpts}</select></td>
-            <td><input type="date" value="${inv['結帳日期']||''}" oninput="updateDraft(${i},'結帳日期',this.value)" style="width:130px;padding:4px 8px;border:1px solid #fdba74;border-radius:5px;font-size:12px"></td>
+            <td><input type="date" value="${inv['預計付款日']||''}" oninput="updateDraft(${i},'預計付款日',this.value)" style="width:130px;padding:4px 8px;border:1px solid #fdba74;border-radius:5px;font-size:12px"></td>
             <td><input value="${inv['備註']||''}" oninput="updateDraft(${i},'備註',this.value)" style="width:130px;padding:4px 8px;border:1px solid #fdba74;border-radius:5px;font-size:12px"></td>
             <td><button onclick="deleteDraft(${i})" style="background:#fee2e2;color:#b91c1c;border:none;padding:4px 8px;border-radius:4px;font-size:11px;cursor:pointer">🗑️</button></td>
           </tr>`;
