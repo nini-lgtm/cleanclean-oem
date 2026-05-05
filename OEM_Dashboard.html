@@ -411,14 +411,15 @@ tr:hover td{background:#f8fafc}
 <button id="fpa-only-pending" class="filter-select" onclick="togglePayFilter('pending')" style="cursor:pointer">🔍 只看待核對</button>
 <button id="fpa-only-unpaid" class="filter-select" onclick="togglePayFilter('unpaid')" style="cursor:pointer">🔍 只看待付款</button>
 <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
-<span id="pa-draft-count" style="font-size:12px;color:#dc2626;font-weight:600"></span>
-<button onclick="exportReconExcel()" style="background:#10b981;color:#fff;border:none;padding:7px 14px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">📥 匯出最新 Excel</button>
+<span id="pa-cloud-status" style="font-size:11px;color:#10b981;font-weight:600"></span>
+<button onclick="cloudSyncPull()" style="background:#3b82f6;color:#fff;border:none;padding:7px 14px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">⬇️ 從雲端讀取</button>
+<button onclick="cloudSyncPush()" style="background:#10b981;color:#fff;border:none;padding:7px 14px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">⬆️ 上傳到雲端</button>
 </div>
 </div>
 <div class="kpi-row" id="pa-kpi"></div>
 <div class="kpi-row" id="pa-status-kpi"></div>
-<div style="background:#fef9c3;border:1px solid #facc15;border-radius:8px;padding:10px 14px;margin:12px 0;font-size:13px;color:#713f12">
-💡 在此處直接「<b>+ 新增發票</b>」→ 自動存草稿（橘底）→ 點右上「<b>📥 匯出最新 Excel</b>」下載 → 拖到 Drive 覆蓋原檔 → 隔天同步完成（變綠底）。
+<div style="background:#ecfdf5;border:1px solid #10b981;border-radius:8px;padding:10px 14px;margin:12px 0;font-size:13px;color:#065f46">
+✨ 在此處直接「<b>+ 新增發票</b>」→ 點右上「<b>⬆️ 上傳到雲端</b>」→ 自動寫進 Drive 上的 Google 試算表（多人同步、即時）。打開頁面會自動從雲端讀取最新版。
 </div>
 <div id="pa-list"></div>
 </div>
@@ -1069,47 +1070,69 @@ function deleteDraft(idx){
 }
 function updateDraftCount(){
   const n=loadDrafts().length;
-  const el=document.getElementById('pa-draft-count');
-  if(el)el.textContent=n>0?`📝 ${n} 筆未匯出草稿`:'';
+  const el=document.getElementById('pa-cloud-status');
+  if(el && n>0){el.textContent=`📝 ${n} 筆未上傳`;el.style.color='#dc2626';}
 }
-function exportReconExcel(){
-  // 合併 Excel 資料 + localStorage 草稿
-  const excelRows=RECON.slice();
-  const drafts=loadDrafts();
-  // 去重（以月份+廠商+發票號碼為 key，草稿覆蓋 Excel 同 key）
-  const merged={};
-  excelRows.forEach(r=>{
-    const k=`${r['月份']}|${r['廠商代號']}|${(r['發票號碼']||'').trim()}`;
-    merged[k]=r;
-  });
-  drafts.forEach(d=>{
-    const k=`${d['月份']}|${d['廠商代號']}|${(d['發票號碼']||'').trim()}`;
-    merged[k]=d;
-  });
-  const all=Object.values(merged).sort((a,b)=>{
-    return ((a['月份']||'')+'|'+(a['廠商代號']||'')).localeCompare(((b['月份']||'')+'|'+(b['廠商代號']||'')));
-  });
-  // 用 SheetJS 產生 xlsx
-  const headers=['月份','廠商代號','廠商','發票號碼','發票日期','發票金額','狀態','結帳日期','備註'];
-  const data=[headers].concat(all.map(r=>headers.map(h=>r[h]||'')));
-  const ws=XLSX.utils.aoa_to_sheet(data);
-  ws['!cols']=[{wch:12},{wch:12},{wch:16},{wch:18},{wch:14},{wch:14},{wch:14},{wch:14},{wch:30}];
-  const wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb,ws,'對帳記錄');
-  // 加說明 sheet
-  const notes=[['📒 OEM 對帳記錄使用說明'],[],
-    ['1. 一張發票一行（同廠商同月可有多張發票，就填多行）'],
-    ['2. 月份格式：YYYY-MM，如 2026-04'],
-    ['3. 廠商代號：跟廠商資料表一致（V0003、V0005 等）'],
-    ['4. 發票日期格式：YYYY/MM/DD'],
-    ['5. 狀態：空白 = 待核對 / 已核對 / 已付款'],
-    ['6. 此 Excel 由儀表板自動產生，請拖到 Drive 覆蓋原檔（檔名要一樣）'],
-  ];
-  const ws2=XLSX.utils.aoa_to_sheet(notes);
-  ws2['!cols']=[{wch:80}];
-  XLSX.utils.book_append_sheet(wb,ws2,'使用說明');
-  XLSX.writeFile(wb,'OEM對帳記錄 RC.xlsx');
-  alert('✅ 已下載 OEM對帳記錄 RC.xlsx\n\n👉 下一步：\n1. 開 Drive → cowork(營運) → OEM\n2. 把剛下載的 Excel 拖到資料夾（會問是否取代 → 點「取代」）\n3. 之後同步即會以 Excel 為準，草稿自動清除');
+// 雲端同步：Apps Script Web App
+const CLOUD_API_URL='https://script.google.com/macros/s/AKfycbwtJjkzih3_szN5LHtMQyJOnbfNc9fIw3DaClwjK93CNPu7TXuHpgYIKQzma7BGBo2U/exec';
+function showCloudStatus(msg,err){
+  const el=document.getElementById('pa-cloud-status');
+  if(!el)return;
+  el.textContent=msg;
+  el.style.color=err?'#dc2626':'#10b981';
+  if(!err)setTimeout(()=>{if(el.textContent===msg)el.textContent='';},3500);
+}
+async function cloudSyncPull(silent){
+  try{
+    if(!silent)showCloudStatus('⏳ 讀取中...');
+    const r=await fetch(CLOUD_API_URL,{method:'GET'});
+    const txt=await r.text();
+    const data=JSON.parse(txt);
+    if(data.error)throw new Error(data.error);
+    if(!Array.isArray(data))throw new Error('回傳格式錯誤');
+    // 覆蓋 RECON，重新刷頁面
+    RAW.recon=data;
+    // 把全域 RECON 也更新（const 不能改 reference，但可以改內容）
+    RECON.length=0;
+    data.forEach(r=>RECON.push(r));
+    // 自動清掉已上傳的草稿
+    cleanDrafts();
+    showCloudStatus(`✅ 已同步 ${data.length} 筆`);
+    refreshPayables();
+  }catch(e){
+    showCloudStatus('❌ 讀取失敗：'+e.message,true);
+  }
+}
+async function cloudSyncPush(){
+  try{
+    showCloudStatus('⏳ 上傳中...');
+    // 合併 Excel + 草稿
+    const drafts=loadDrafts();
+    const merged={};
+    RECON.forEach(r=>{
+      const k=`${r['月份']}|${r['廠商代號']}|${(r['發票號碼']||'').trim()}`;
+      merged[k]=r;
+    });
+    drafts.forEach(d=>{
+      const k=`${d['月份']}|${d['廠商代號']}|${(d['發票號碼']||'').trim()}`;
+      merged[k]=d;
+    });
+    const all=Object.values(merged).sort((a,b)=>((a['月份']||'')+'|'+(a['廠商代號']||'')).localeCompare(((b['月份']||'')+'|'+(b['廠商代號']||''))));
+    const r=await fetch(CLOUD_API_URL,{
+      method:'POST',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body:JSON.stringify(all),
+    });
+    const txt=await r.text();
+    const res=JSON.parse(txt);
+    if(res.error)throw new Error(res.error);
+    if(!res.ok)throw new Error('上傳失敗：'+txt.substring(0,80));
+    // 上傳成功後重新拉一次（同步顯示）
+    showCloudStatus(`✅ 已上傳 ${res.count} 筆`);
+    setTimeout(()=>cloudSyncPull(true),500);
+  }catch(e){
+    showCloudStatus('❌ 上傳失敗：'+e.message,true);
+  }
 }
 
 function initPayables(){
@@ -1120,6 +1143,8 @@ function initPayables(){
   const sel=document.getElementById('fpa-month');
   const sorted=[...months].sort().reverse();
   sorted.forEach(m=>{const cnt=RECEIPTS.filter(r=>(r['進貨日期']||'').substring(0,7).replace('/','-')===m).length;sel.innerHTML+=`<option value="${m}">${m.replace('-','/')}（${cnt}筆）</option>`;});
+  // 開啟頁面時自動從雲端讀取最新
+  cloudSyncPull(true);
 }
 function togglePayFilter(k){payFilter[k]=!payFilter[k];refreshPayables();}
 function refreshPayables(){
