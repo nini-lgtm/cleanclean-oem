@@ -86,6 +86,31 @@ tr:hover td{background:#f8fafc}
 #sec-bom .bom-body td:nth-child(5)::before{content:"未稅 ";color:#cbd5e1;font-size:10px}
 #sec-bom .table-card h3{font-size:13px;margin-bottom:6px}
 #sec-bom .table-card .subtitle{font-size:11px;margin-bottom:10px}
+/* 月進貨對帳 */
+.pa-card{background:#fff;border:1px solid #e2e8f0;border-radius:10px;margin-bottom:10px;overflow:hidden}
+.pa-head{display:flex;align-items:center;gap:14px;padding:14px 18px;background:linear-gradient(90deg,#f0fdfa,#ecfdf5);cursor:pointer;border-left:4px solid #10b981;flex-wrap:wrap}
+.pa-head.reconciled{background:linear-gradient(90deg,#d1fae5,#a7f3d0);border-left-color:#059669}
+.pa-head.paid{background:linear-gradient(90deg,#dbeafe,#bfdbfe);border-left-color:#2563eb}
+.pa-head.diff{background:linear-gradient(90deg,#fee2e2,#fecaca);border-left-color:#dc2626}
+.pa-head .pa-vendor{font-size:16px;font-weight:700;color:#0f172a;min-width:120px}
+.pa-head .pa-stat{font-size:12px;color:#475569}
+.pa-head .pa-amt{font-size:14px;font-weight:600;color:#0f172a}
+.pa-tag{display:inline-block;padding:3px 9px;border-radius:5px;font-size:11px;font-weight:600;margin-left:6px}
+.pa-tag.invoice{background:#fef3c7;color:#92400e}
+.pa-tag.match{background:#dcfce7;color:#166534}
+.pa-tag.diff{background:#fecaca;color:#b91c1c}
+.pa-body{padding:14px 18px;background:#fafafa;border-top:1px solid #e2e8f0;display:none}
+.pa-form{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px;padding:10px;background:#fff;border:1px dashed #cbd5e1;border-radius:8px}
+.pa-form label{font-size:12px;font-weight:600;color:#475569}
+.pa-form input{padding:6px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;font-family:inherit}
+.pa-form .btn-recon{background:#10b981;color:#fff;border:none;padding:7px 14px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer}
+.pa-form .btn-recon.done{background:#059669}
+.pa-form .btn-pay{background:#f59e0b;color:#fff;border:none;padding:7px 14px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer}
+.pa-form .btn-pay.done{background:#3b82f6}
+.pa-detail-table{width:100%;border-collapse:collapse;font-size:12px}
+.pa-detail-table th{background:#f1f5f9;padding:8px 10px;text-align:left;color:#475569;font-weight:600}
+.pa-detail-table td{padding:7px 10px;border-bottom:1px solid #f1f5f9}
+.pa-detail-table .num{text-align:right;font-variant-numeric:tabular-nums}
 .bom-card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.04);transition:box-shadow .2s}
 .bom-card:hover{box-shadow:0 4px 12px rgba(59,130,246,.12)}
 .bom-head{display:flex;align-items:center;gap:14px;padding:14px 18px;cursor:pointer;background:#fff;border-left:4px solid var(--blue);transition:background .15s}
@@ -247,6 +272,7 @@ tr:hover td{background:#f8fafc}
 <button class="nav-btn" onclick="showPage('sales_iea',this)">銷售明細</button>
 <button class="nav-btn" onclick="showPage('orders',this)">訂購單</button>
 <button class="nav-btn" onclick="showPage('receivables',this)">應收帳款</button>
+<button class="nav-btn" onclick="showPage('payables',this)">月進貨對帳</button>
 </nav>
 
 <!-- PAGE 1: 總覽 -->
@@ -371,6 +397,26 @@ tr:hover td{background:#f8fafc}
 </div>
 <div class="kpi-row" id="rkpi-row"></div>
 <div class="table-card"><h3>應收帳款明細</h3><div id="recv-table"></div></div>
+</div>
+
+<!-- PAGE: 月進貨對帳（廠商月結）-->
+<div id="page-payables" class="page">
+<div class="pipeline-banner" style="background:#ecfdf5;border-color:#10b981">
+<h3>📒 月進貨對帳 — 依廠商彙總</h3>
+<div class="pipe-val">用於核對廠商每月開立的發票（金額/數量/單價）｜ 已排除「公司轉進來 V0013」（內部扣庫存用，無發票）</div>
+</div>
+<div class="filters" style="align-items:center">
+<span class="filter-label">選擇月份</span>
+<select id="fpa-month" class="filter-select" onchange="refreshPayables()"></select>
+<button id="fpa-only-pending" class="filter-select" onclick="togglePayFilter('pending')" style="cursor:pointer">🔍 只看待核對</button>
+<button id="fpa-only-unpaid" class="filter-select" onclick="togglePayFilter('unpaid')" style="cursor:pointer">🔍 只看待付款</button>
+</div>
+<div class="kpi-row" id="pa-kpi"></div>
+<div class="kpi-row" id="pa-status-kpi"></div>
+<div style="background:#fef9c3;border:1px solid #facc15;border-radius:8px;padding:10px 14px;margin:12px 0;font-size:13px;color:#713f12">
+💡 點擊廠商列展開明細 → 填發票號碼/備註 → 採購按「✅ 核對完畢」→ 會計按「💰 已付款」。狀態存在瀏覽器，不會遺失。
+</div>
+<div id="pa-list"></div>
 </div>
 
 </div>
@@ -594,7 +640,7 @@ function showPage(id,btn){
   document.getElementById('page-'+id).classList.add('active');
   document.querySelectorAll('#sec-oem .nav-btn').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
-  if(id==='customer')refreshCustomer();if(id==='matcost')refreshMatCost();if(id==='detail')refreshDetail();if(id==='sales_iea')refreshSalesIEA();if(id==='orders')refreshOrders();if(id==='receivables')refreshReceivables();
+  if(id==='customer')refreshCustomer();if(id==='matcost')refreshMatCost();if(id==='detail')refreshDetail();if(id==='sales_iea')refreshSalesIEA();if(id==='orders')refreshOrders();if(id==='receivables')refreshReceivables();if(id==='payables')refreshPayables();
 }
 
 // ===== HOME =====
@@ -961,6 +1007,169 @@ function refreshReceivables(){
   });
   h+='</tbody></table>';
   document.getElementById('recv-table').innerHTML=h;
+}
+
+// ===== 月進貨對帳 (廠商月結) =====
+const RECEIPTS=RAW.receipts||[];
+const SUPPLIERS=RAW.suppliers||[];
+const SUPPLIER_MAP={};
+SUPPLIERS.forEach(s=>{if(s['廠商代號'])SUPPLIER_MAP[s['廠商代號']]={name:s['簡稱']||s['全名']||s['廠商代號'],pay:s['付款方式']||''};});
+const PAY_EXCLUDE_VENDOR={'V0013':1};  // 公司轉進來，無發票
+let _paInit=false;
+let payFilter={pending:false,unpaid:false};
+
+function loadPayState(){
+  try{return JSON.parse(localStorage.getItem('oem_recon')||'{}');}catch(e){return {};}
+}
+function savePayState(s){localStorage.setItem('oem_recon',JSON.stringify(s));}
+function payKey(vendor,month){return vendor+'|'+month;}
+
+function initPayables(){
+  if(_paInit)return;_paInit=true;
+  // 月份下拉
+  const months=new Set();
+  RECEIPTS.forEach(r=>{const d=r['進貨日期']||'';if(d.length>=7)months.add(d.substring(0,7).replace('/','-'));});
+  const sel=document.getElementById('fpa-month');
+  const sorted=[...months].sort().reverse();
+  sorted.forEach(m=>{const cnt=RECEIPTS.filter(r=>(r['進貨日期']||'').substring(0,7).replace('/','-')===m).length;sel.innerHTML+=`<option value="${m}">${m.replace('-','/')}（${cnt}筆）</option>`;});
+}
+function togglePayFilter(k){payFilter[k]=!payFilter[k];refreshPayables();}
+function refreshPayables(){
+  initPayables();
+  const month=document.getElementById('fpa-month').value;
+  if(!month){document.getElementById('pa-list').innerHTML='<div style="text-align:center;color:#94a3b8;padding:40px">尚無資料</div>';return;}
+  // 樣式更新 filter 按鈕
+  document.getElementById('fpa-only-pending').style.background=payFilter.pending?'#fef3c7':'';
+  document.getElementById('fpa-only-unpaid').style.background=payFilter.unpaid?'#fef3c7':'';
+
+  const rows=RECEIPTS.filter(r=>{
+    const d=(r['進貨日期']||'').substring(0,7).replace('/','-');
+    if(d!==month)return false;
+    if(PAY_EXCLUDE_VENDOR[r['廠商代號']])return false;
+    return true;
+  });
+
+  // 依廠商分組
+  const groups={};
+  rows.forEach(r=>{
+    const v=r['廠商代號']||'-';
+    if(!groups[v])groups[v]={code:v,name:r['廠商']||(SUPPLIER_MAP[v]?SUPPLIER_MAP[v].name:v),items:[],total:0,qty:0};
+    groups[v].items.push(r);
+    groups[v].total+=r['小計']||0;
+    groups[v].qty+=r['數量']||0;
+  });
+  let vendors=Object.values(groups).sort((a,b)=>b.total-a.total);
+
+  const state=loadPayState();
+  // 分類待核對 / 已核對 / 待付款 / 已付款
+  vendors.forEach(g=>{
+    const k=payKey(g.code,month);
+    g.st=state[k]||{};
+    g.reconciled=!!g.st.reconciled_at;
+    g.paid=!!g.st.paid_at;
+  });
+  // 篩選
+  if(payFilter.pending)vendors=vendors.filter(g=>!g.reconciled);
+  if(payFilter.unpaid)vendors=vendors.filter(g=>!g.paid);
+
+  // KPI
+  const totalNet=vendors.reduce((s,g)=>s+g.total,0);
+  const totalTax=Math.round(totalNet*0.05);
+  const totalGross=totalNet+totalTax;
+  const totalQty=vendors.reduce((s,g)=>s+g.qty,0);
+  const totalRows=vendors.reduce((s,g)=>s+g.items.length,0);
+  document.getElementById('pa-kpi').innerHTML=`
+    <div class="kpi-card" style="border-left-color:#0ea5e9"><div class="kpi-label">廠商數</div><div class="kpi-value">${vendors.length}</div></div>
+    <div class="kpi-card" style="border-left-color:#3b82f6"><div class="kpi-label">進貨筆數</div><div class="kpi-value">${totalRows}</div></div>
+    <div class="kpi-card" style="border-left-color:#f59e0b"><div class="kpi-label">總金額（未稅）</div><div class="kpi-value">${NT(totalNet)}</div></div>
+    <div class="kpi-card" style="border-left-color:#a855f7"><div class="kpi-label">預估稅額（5%）</div><div class="kpi-value">${NT(totalTax)}</div></div>
+    <div class="kpi-card" style="border-left-color:#10b981"><div class="kpi-label">含稅總計</div><div class="kpi-value">${NT(totalGross)}</div></div>`;
+  const pending=vendors.filter(g=>!g.reconciled).length;
+  const reconciled=vendors.filter(g=>g.reconciled).length;
+  const unpaid=vendors.filter(g=>g.reconciled&&!g.paid).length;
+  const paid=vendors.filter(g=>g.paid).length;
+  document.getElementById('pa-status-kpi').innerHTML=`
+    <div class="kpi-card" style="border-left-color:#ef4444"><div class="kpi-label">⏳ 待核對</div><div class="kpi-value" style="color:#dc2626">${pending} 家</div></div>
+    <div class="kpi-card" style="border-left-color:#10b981"><div class="kpi-label">✅ 已核對</div><div class="kpi-value" style="color:#059669">${reconciled} 家</div></div>
+    <div class="kpi-card" style="border-left-color:#f59e0b"><div class="kpi-label">⏳ 待付款</div><div class="kpi-value" style="color:#d97706">${unpaid} 家</div></div>
+    <div class="kpi-card" style="border-left-color:#3b82f6"><div class="kpi-label">💰 已付款</div><div class="kpi-value" style="color:#2563eb">${paid} 家</div></div>`;
+
+  let html='';
+  vendors.forEach(g=>{
+    const grossExpected=Math.round(g.total*1.05);
+    const invAmt=parseFloat(g.st.invoice_amt||0);
+    const diff=invAmt?Math.round(invAmt-grossExpected):0;
+    const matched=invAmt&&Math.abs(diff)<=2;
+    const headCls=g.paid?'paid':(g.reconciled?'reconciled':(invAmt&&!matched?'diff':''));
+    let tag='';
+    if(g.paid)tag=`<span class="pa-tag" style="background:#dbeafe;color:#1e40af">💰 已付款</span>`;
+    else if(g.reconciled)tag=`<span class="pa-tag match">✅ 已核對</span>`;
+    if(g.st.invoice_no)tag+=`<span class="pa-tag invoice">📄 ${g.st.invoice_no}</span>`;
+    if(invAmt){
+      if(matched)tag+=`<span class="pa-tag match">${NT(invAmt)} ✓</span>`;
+      else tag+=`<span class="pa-tag diff">${NT(invAmt)} ${diff>=0?'+':''}${diff}</span>`;
+    }
+    // 明細表
+    const items=g.items.slice().sort((a,b)=>(a['進貨日期']||'').localeCompare(b['進貨日期']||''));
+    let tbl='<table class="pa-detail-table"><thead><tr><th>進貨日</th><th>進貨單號</th><th>採購單號</th><th>物料代號</th><th>品名</th><th>進貨批號</th><th class="num">數量</th><th class="num">單價</th><th class="num">金額（未稅）</th><th class="num">稅額5%</th></tr></thead><tbody>';
+    items.forEach(r=>{
+      const sub=r['小計']||0;
+      tbl+=`<tr><td>${r['進貨日期']||''}</td><td style="color:#3b82f6">${r['進貨單號']||''}</td><td style="color:#3b82f6">${r['採購單號']||''}</td><td>${r['產品代號']||''}</td><td>${r['產品名稱']||''}</td><td style="color:#94a3b8">${r['進貨批號']||''}</td><td class="num">${(r['數量']||0).toLocaleString()}</td><td class="num">${(r['單價']||0).toLocaleString()}</td><td class="num">${NT(sub)}</td><td class="num" style="color:#a855f7">${NT(Math.round(sub*0.05))}</td></tr>`;
+    });
+    tbl+='</tbody></table>';
+    const k=payKey(g.code,month);
+    html+=`<div class="pa-card">
+      <div class="pa-head ${headCls}" onclick="var b=this.nextElementSibling;b.style.display=b.style.display==='none'||!b.style.display?'block':'none'">
+        <div class="pa-vendor">📦 ${g.name}</div>
+        <div class="pa-stat">${g.items.length}筆 ｜ 數量${g.qty.toLocaleString()} ｜ 未稅<b>${NT(g.total)}</b> ｜ 稅<b>${NT(Math.round(g.total*0.05))}</b> ｜ <span style="color:#059669">含稅<b>${NT(grossExpected)}</b></span></div>
+        ${tag}
+        <div style="margin-left:auto;color:#94a3b8;font-size:11px">▾</div>
+      </div>
+      <div class="pa-body">
+        <div class="pa-form">
+          <label>📄 發票號碼：</label>
+          <input id="pa-inv-${k.replace('|','-')}" value="${g.st.invoice_no||''}" placeholder="EX12345678" style="width:160px">
+          <label>💵 發票金額：</label>
+          <input id="pa-amt-${k.replace('|','-')}" type="number" value="${g.st.invoice_amt||''}" placeholder="${grossExpected}" style="width:120px">
+          <label>📝 備註：</label>
+          <input id="pa-note-${k.replace('|','-')}" value="${g.st.note||''}" placeholder="例：發票日 / 開票日" style="width:180px">
+          <button class="btn-recon ${g.reconciled?'done':''}" onclick="markRecon('${g.code}','${month}',${!g.reconciled})">${g.reconciled?'✅ 已核對 (取消)':'✅ 核對完畢'}</button>
+          <button class="btn-pay ${g.paid?'done':''}" onclick="markPaid('${g.code}','${month}',${!g.paid})">${g.paid?'💰 已付款 (取消)':'💰 標記已付款'}</button>
+        </div>
+        ${tbl}
+      </div>
+    </div>`;
+  });
+  if(vendors.length===0)html='<div style="text-align:center;color:#94a3b8;padding:40px">查無符合的廠商</div>';
+  document.getElementById('pa-list').innerHTML=html;
+}
+function markRecon(vendor,month,doIt){
+  const s=loadPayState();const k=payKey(vendor,month);if(!s[k])s[k]={};
+  // 從輸入抓最新值
+  const kid=k.replace('|','-');
+  const inv=document.getElementById('pa-inv-'+kid);
+  const amt=document.getElementById('pa-amt-'+kid);
+  const note=document.getElementById('pa-note-'+kid);
+  if(inv)s[k].invoice_no=inv.value.trim();
+  if(amt)s[k].invoice_amt=amt.value?parseFloat(amt.value):0;
+  if(note)s[k].note=note.value.trim();
+  s[k].reconciled_at=doIt?new Date().toISOString():null;
+  if(!doIt)s[k].paid_at=null;  // 取消核對也取消已付
+  savePayState(s);refreshPayables();
+}
+function markPaid(vendor,month,doIt){
+  const s=loadPayState();const k=payKey(vendor,month);if(!s[k])s[k]={};
+  // 自動順便核對
+  const kid=k.replace('|','-');
+  const inv=document.getElementById('pa-inv-'+kid);
+  const amt=document.getElementById('pa-amt-'+kid);
+  const note=document.getElementById('pa-note-'+kid);
+  if(inv)s[k].invoice_no=inv.value.trim();
+  if(amt)s[k].invoice_amt=amt.value?parseFloat(amt.value):0;
+  if(note)s[k].note=note.value.trim();
+  if(doIt&&!s[k].reconciled_at)s[k].reconciled_at=new Date().toISOString();
+  s[k].paid_at=doIt?new Date().toISOString():null;
+  savePayState(s);refreshPayables();
 }
 
 // ===== INVENTORY =====
