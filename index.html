@@ -1019,7 +1019,17 @@ let _paInit=false;
 let payFilter={pending:false,unpaid:false};
 
 function loadPayState(){
-  try{return JSON.parse(localStorage.getItem('oem_recon')||'{}');}catch(e){return {};}
+  let s={};
+  try{s=JSON.parse(localStorage.getItem('oem_recon')||'{}');}catch(e){return {};}
+  // 升級舊格式 (單張發票) → 新格式 (多張發票陣列)
+  Object.keys(s).forEach(k=>{
+    const v=s[k];
+    if(!v.invoices){
+      v.invoices=[{no:v.invoice_no||'',amt:parseFloat(v.invoice_amt||0)||0,note:v.note||''}];
+      // 留 invoice_no/amt/note 暫不刪，保留向下相容
+    }
+  });
+  return s;
 }
 function savePayState(s){localStorage.setItem('oem_recon',JSON.stringify(s));}
 function payKey(vendor,month){return vendor+'|'+month;}
@@ -1097,17 +1107,20 @@ function refreshPayables(){
   let html='';
   vendors.forEach(g=>{
     const grossExpected=Math.round(g.total*1.05);
-    const invAmt=parseFloat(g.st.invoice_amt||0);
-    const diff=invAmt?Math.round(invAmt-grossExpected):0;
-    const matched=invAmt&&Math.abs(diff)<=2;
-    const headCls=g.paid?'paid':(g.reconciled?'reconciled':(invAmt&&!matched?'diff':''));
+    const invs=(g.st.invoices&&g.st.invoices.length)?g.st.invoices:[{no:'',amt:0,note:''}];
+    const totalInvAmt=invs.reduce((s,i)=>s+(parseFloat(i.amt)||0),0);
+    const diff=totalInvAmt?Math.round(totalInvAmt-grossExpected):0;
+    const matched=totalInvAmt&&Math.abs(diff)<=2;
+    const headCls=g.paid?'paid':(g.reconciled?'reconciled':(totalInvAmt&&!matched?'diff':''));
     let tag='';
     if(g.paid)tag=`<span class="pa-tag" style="background:#dbeafe;color:#1e40af">💰 已付款</span>`;
     else if(g.reconciled)tag=`<span class="pa-tag match">✅ 已核對</span>`;
-    if(g.st.invoice_no)tag+=`<span class="pa-tag invoice">📄 ${g.st.invoice_no}</span>`;
-    if(invAmt){
-      if(matched)tag+=`<span class="pa-tag match">${NT(invAmt)} ✓</span>`;
-      else tag+=`<span class="pa-tag diff">${NT(invAmt)} ${diff>=0?'+':''}${diff}</span>`;
+    const invNos=invs.filter(i=>i.no).map(i=>i.no);
+    if(invNos.length===1)tag+=`<span class="pa-tag invoice">📄 ${invNos[0]}</span>`;
+    else if(invNos.length>1)tag+=`<span class="pa-tag invoice">📄 ${invNos.length} 張發票</span>`;
+    if(totalInvAmt){
+      if(matched)tag+=`<span class="pa-tag match">${NT(totalInvAmt)} ✓</span>`;
+      else tag+=`<span class="pa-tag diff">${NT(totalInvAmt)} ${diff>=0?'+':''}${diff}</span>`;
     }
     // 明細表
     const items=g.items.slice().sort((a,b)=>(a['進貨日期']||'').localeCompare(b['進貨日期']||''));
@@ -1118,6 +1131,23 @@ function refreshPayables(){
     });
     tbl+='</tbody></table>';
     const k=payKey(g.code,month);
+    const kid=k.replace('|','-');
+    // 多張發票列
+    let invForm=`<div id="pa-invs-${kid}">`;
+    invs.forEach((inv,idx)=>{
+      invForm+=`<div class="pa-inv-row" data-idx="${idx}" style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
+        <span style="background:#e2e8f0;color:#475569;padding:2px 8px;border-radius:5px;font-size:11px;font-weight:600">#${idx+1}</span>
+        <label style="font-size:12px;color:#475569">📄 號碼</label>
+        <input class="pa-inv-no" value="${inv.no||''}" placeholder="EX12345678" style="width:150px;padding:6px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px">
+        <label style="font-size:12px;color:#475569">💵 金額</label>
+        <input class="pa-inv-amt" type="number" value="${inv.amt||''}" placeholder="0" style="width:110px;padding:6px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px">
+        <label style="font-size:12px;color:#475569">📝 備註</label>
+        <input class="pa-inv-note" value="${inv.note||''}" placeholder="發票日/開票日" style="width:180px;padding:6px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px">
+        ${invs.length>1?`<button onclick="removeInv('${g.code}','${month}',${idx})" style="background:#fee2e2;color:#b91c1c;border:none;padding:5px 10px;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer">🗑️ 刪</button>`:''}
+      </div>`;
+    });
+    invForm+='</div>';
+    const totalInvDisplay=totalInvAmt?` <span style="color:${matched?'#059669':'#dc2626'};font-weight:700">→ 共 ${NT(totalInvAmt)} ${matched?'✓ 相符':`(差額 ${diff>=0?'+':''}${diff})`}</span>`:'';
     html+=`<div class="pa-card">
       <div class="pa-head ${headCls}" onclick="var b=this.nextElementSibling;b.style.display=b.style.display==='none'||!b.style.display?'block':'none'">
         <div class="pa-vendor">📦 ${g.name}</div>
@@ -1126,15 +1156,16 @@ function refreshPayables(){
         <div style="margin-left:auto;color:#94a3b8;font-size:11px">▾</div>
       </div>
       <div class="pa-body">
-        <div class="pa-form">
-          <label>📄 發票號碼：</label>
-          <input id="pa-inv-${k.replace('|','-')}" value="${g.st.invoice_no||''}" placeholder="EX12345678" style="width:160px">
-          <label>💵 發票金額：</label>
-          <input id="pa-amt-${k.replace('|','-')}" type="number" value="${g.st.invoice_amt||''}" placeholder="${grossExpected}" style="width:120px">
-          <label>📝 備註：</label>
-          <input id="pa-note-${k.replace('|','-')}" value="${g.st.note||''}" placeholder="例：發票日 / 開票日" style="width:180px">
-          <button class="btn-recon ${g.reconciled?'done':''}" onclick="markRecon('${g.code}','${month}',${!g.reconciled})">${g.reconciled?'✅ 已核對 (取消)':'✅ 核對完畢'}</button>
-          <button class="btn-pay ${g.paid?'done':''}" onclick="markPaid('${g.code}','${month}',${!g.paid})">${g.paid?'💰 已付款 (取消)':'💰 標記已付款'}</button>
+        <div class="pa-form" style="flex-direction:column;align-items:stretch">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <div style="font-size:13px;font-weight:600;color:#0f172a">📄 發票核對（可多張）${totalInvDisplay}</div>
+            <button onclick="addInv('${g.code}','${month}')" style="background:#10b981;color:#fff;border:none;padding:5px 12px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer">+ 新增發票列</button>
+          </div>
+          ${invForm}
+          <div style="display:flex;gap:10px;margin-top:8px;justify-content:flex-end">
+            <button class="btn-recon ${g.reconciled?'done':''}" onclick="markRecon('${g.code}','${month}',${!g.reconciled})">${g.reconciled?'✅ 已核對 (取消)':'✅ 核對完畢'}</button>
+            <button class="btn-pay ${g.paid?'done':''}" onclick="markPaid('${g.code}','${month}',${!g.paid})">${g.paid?'💰 已付款 (取消)':'💰 標記已付款'}</button>
+          </div>
         </div>
         ${tbl}
       </div>
@@ -1143,30 +1174,52 @@ function refreshPayables(){
   if(vendors.length===0)html='<div style="text-align:center;color:#94a3b8;padding:40px">查無符合的廠商</div>';
   document.getElementById('pa-list').innerHTML=html;
 }
-function markRecon(vendor,month,doIt){
+// 從畫面 DOM 抓所有發票列存進 state
+function collectInvs(vendor,month){
+  const k=payKey(vendor,month);const kid=k.replace('|','-');
+  const wrap=document.getElementById('pa-invs-'+kid);
+  if(!wrap)return [];
+  const rows=wrap.querySelectorAll('.pa-inv-row');
+  const out=[];
+  rows.forEach(r=>{
+    const no=r.querySelector('.pa-inv-no').value.trim();
+    const amt=r.querySelector('.pa-inv-amt').value;
+    const note=r.querySelector('.pa-inv-note').value.trim();
+    if(no||amt||note){
+      out.push({no,amt:amt?parseFloat(amt):0,note});
+    }
+  });
+  return out;
+}
+function syncInvsToState(vendor,month){
   const s=loadPayState();const k=payKey(vendor,month);if(!s[k])s[k]={};
-  // 從輸入抓最新值
-  const kid=k.replace('|','-');
-  const inv=document.getElementById('pa-inv-'+kid);
-  const amt=document.getElementById('pa-amt-'+kid);
-  const note=document.getElementById('pa-note-'+kid);
-  if(inv)s[k].invoice_no=inv.value.trim();
-  if(amt)s[k].invoice_amt=amt.value?parseFloat(amt.value):0;
-  if(note)s[k].note=note.value.trim();
+  s[k].invoices=collectInvs(vendor,month);
+  if(!s[k].invoices.length)s[k].invoices=[{no:'',amt:0,note:''}];
+  savePayState(s);return s;
+}
+function addInv(vendor,month){
+  const s=syncInvsToState(vendor,month);
+  const k=payKey(vendor,month);
+  s[k].invoices.push({no:'',amt:0,note:''});
+  savePayState(s);refreshPayables();
+}
+function removeInv(vendor,month,idx){
+  syncInvsToState(vendor,month);
+  const s=loadPayState();const k=payKey(vendor,month);
+  s[k].invoices.splice(idx,1);
+  if(!s[k].invoices.length)s[k].invoices=[{no:'',amt:0,note:''}];
+  savePayState(s);refreshPayables();
+}
+function markRecon(vendor,month,doIt){
+  syncInvsToState(vendor,month);
+  const s=loadPayState();const k=payKey(vendor,month);if(!s[k])s[k]={};
   s[k].reconciled_at=doIt?new Date().toISOString():null;
   if(!doIt)s[k].paid_at=null;  // 取消核對也取消已付
   savePayState(s);refreshPayables();
 }
 function markPaid(vendor,month,doIt){
+  syncInvsToState(vendor,month);
   const s=loadPayState();const k=payKey(vendor,month);if(!s[k])s[k]={};
-  // 自動順便核對
-  const kid=k.replace('|','-');
-  const inv=document.getElementById('pa-inv-'+kid);
-  const amt=document.getElementById('pa-amt-'+kid);
-  const note=document.getElementById('pa-note-'+kid);
-  if(inv)s[k].invoice_no=inv.value.trim();
-  if(amt)s[k].invoice_amt=amt.value?parseFloat(amt.value):0;
-  if(note)s[k].note=note.value.trim();
   if(doIt&&!s[k].reconciled_at)s[k].reconciled_at=new Date().toISOString();
   s[k].paid_at=doIt?new Date().toISOString():null;
   savePayState(s);refreshPayables();
