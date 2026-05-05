@@ -1069,16 +1069,21 @@ function addDraftInvoice(vendor,month){
 }
 function updateDraft(idx,field,value){
   const drafts=loadDrafts();
+  if(idx<0||idx>=drafts.length)return;  // 防呆
   if(field==='發票金額')value=parseFloat(value)||0;
   drafts[idx][field]=value;
-  // 發票日期改了 → 自動帶入預計付款日（若該欄位為空）
+  // 發票日期改了 → 自動帶入預計付款日（不刷新頁面，直接改對應 DOM input）
   if(field==='發票日期' && !drafts[idx]['預計付款日']){
     const due=calcDueDate(drafts[idx]['廠商代號'],value);
     if(due){
       drafts[idx]['預計付款日']=due;
-      saveDrafts(drafts);
-      refreshPayables();
-      return;
+      // 直接更新該列的「預計付款日」input，不重繪整頁
+      const inputs=document.querySelectorAll('.pa-detail-table input');
+      inputs.forEach(inp=>{
+        const oi=inp.getAttribute('oninput')||'';
+        const m=oi.match(/updateDraft\((\d+),'預計付款日'/);
+        if(m && parseInt(m[1])===idx)inp.value=due;
+      });
     }
   }
   saveDrafts(drafts);
@@ -1200,12 +1205,13 @@ function refreshPayables(){
   cleanDrafts();
   updateDraftCount();
   // 從 Excel + localStorage 草稿合併抓發票資料
+  // 一次性 loadDrafts 並標上 idx，避免 indexOf 在不同 parse 結果上失效
+  const allDrafts=loadDrafts();
+  allDrafts.forEach((d,i)=>{d._idx=i;});
   vendors.forEach(g=>{
     const excelInvs=getReconInvoices(g.code,month).map(r=>Object.assign({_src:'excel'},r));
-    const drafts=getDraftInvoices(g.code,month);
-    // 找出每筆 draft 在全域 drafts 陣列中的 index
-    const allDrafts=loadDrafts();
-    drafts.forEach(d=>{d._src='draft';d._idx=allDrafts.indexOf(d);});
+    const drafts=allDrafts.filter(d=>d['廠商代號']===g.code&&d['月份']===month);
+    drafts.forEach(d=>{d._src='draft';});
     g.invoices=excelInvs.concat(drafts);
     const allStatuses=g.invoices.map(i=>(i['狀態']||'').trim());
     g.paid=g.invoices.length>0 && allStatuses.every(s=>s==='已付款');
