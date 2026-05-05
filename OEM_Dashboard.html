@@ -410,11 +410,15 @@ tr:hover td{background:#f8fafc}
 <select id="fpa-month" class="filter-select" onchange="refreshPayables()"></select>
 <button id="fpa-only-pending" class="filter-select" onclick="togglePayFilter('pending')" style="cursor:pointer">🔍 只看待核對</button>
 <button id="fpa-only-unpaid" class="filter-select" onclick="togglePayFilter('unpaid')" style="cursor:pointer">🔍 只看待付款</button>
+<div style="margin-left:auto;display:flex;gap:6px;align-items:center">
+<span id="pa-draft-count" style="font-size:12px;color:#dc2626;font-weight:600"></span>
+<button onclick="exportReconExcel()" style="background:#10b981;color:#fff;border:none;padding:7px 14px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">📥 匯出最新 Excel</button>
+</div>
 </div>
 <div class="kpi-row" id="pa-kpi"></div>
 <div class="kpi-row" id="pa-status-kpi"></div>
 <div style="background:#fef9c3;border:1px solid #facc15;border-radius:8px;padding:10px 14px;margin:12px 0;font-size:13px;color:#713f12">
-💡 此頁顯示每月廠商進貨彙總 + 對應發票（從 <b>OEM對帳記錄 RC.xlsx</b> 抓資料）。同仁直接編輯 Drive 上的 Excel，下次同步後即顯示。
+💡 在此處直接「<b>+ 新增發票</b>」→ 自動存草稿（橘底）→ 點右上「<b>📥 匯出最新 Excel</b>」下載 → 拖到 Drive 覆蓋原檔 → 隔天同步完成（變綠底）。
 </div>
 <div id="pa-list"></div>
 </div>
@@ -527,6 +531,7 @@ tr:hover td{background:#f8fafc}
 </div>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="oem_data.js"></script>
 <script>
 async function sha256(msg){var enc=new TextEncoder();var buf=await crypto.subtle.digest('SHA-256',enc.encode(msg));return Array.from(new Uint8Array(buf)).map(function(b){return b.toString(16).padStart(2,'0');}).join('');}
@@ -1027,6 +1032,85 @@ function getReconInvoices(vendorCode,month){
     return true;
   });
 }
+// localStorage 草稿（尚未同步到 Excel）
+function loadDrafts(){
+  try{return JSON.parse(localStorage.getItem('oem_recon_drafts')||'[]');}catch(e){return [];}
+}
+function saveDrafts(d){localStorage.setItem('oem_recon_drafts',JSON.stringify(d));}
+function getDraftInvoices(vendorCode,month){
+  return loadDrafts().filter(d=>d['廠商代號']===vendorCode&&d['月份']===month);
+}
+// 自動清掉已存在於 Excel 的草稿（避免重複）
+function cleanDrafts(){
+  const drafts=loadDrafts();
+  const excelKeys=new Set(RECON.map(r=>`${r['月份']}|${r['廠商代號']}|${(r['發票號碼']||'').trim()}`));
+  const left=drafts.filter(d=>!excelKeys.has(`${d['月份']}|${d['廠商代號']}|${(d['發票號碼']||'').trim()}`));
+  if(left.length<drafts.length)saveDrafts(left);
+}
+function addDraftInvoice(vendor,month){
+  const drafts=loadDrafts();
+  drafts.push({月份:month,廠商代號:vendor.code,廠商:vendor.name,發票號碼:'',發票日期:'',發票金額:0,狀態:'',結帳日期:'',備註:''});
+  saveDrafts(drafts);
+  refreshPayables();
+}
+function updateDraft(idx,field,value){
+  const drafts=loadDrafts();
+  if(field==='發票金額')value=parseFloat(value)||0;
+  drafts[idx][field]=value;
+  saveDrafts(drafts);
+  updateDraftCount();
+}
+function deleteDraft(idx){
+  if(!confirm('確定刪除這張草稿發票？'))return;
+  const drafts=loadDrafts();
+  drafts.splice(idx,1);
+  saveDrafts(drafts);
+  refreshPayables();
+}
+function updateDraftCount(){
+  const n=loadDrafts().length;
+  const el=document.getElementById('pa-draft-count');
+  if(el)el.textContent=n>0?`📝 ${n} 筆未匯出草稿`:'';
+}
+function exportReconExcel(){
+  // 合併 Excel 資料 + localStorage 草稿
+  const excelRows=RECON.slice();
+  const drafts=loadDrafts();
+  // 去重（以月份+廠商+發票號碼為 key，草稿覆蓋 Excel 同 key）
+  const merged={};
+  excelRows.forEach(r=>{
+    const k=`${r['月份']}|${r['廠商代號']}|${(r['發票號碼']||'').trim()}`;
+    merged[k]=r;
+  });
+  drafts.forEach(d=>{
+    const k=`${d['月份']}|${d['廠商代號']}|${(d['發票號碼']||'').trim()}`;
+    merged[k]=d;
+  });
+  const all=Object.values(merged).sort((a,b)=>{
+    return ((a['月份']||'')+'|'+(a['廠商代號']||'')).localeCompare(((b['月份']||'')+'|'+(b['廠商代號']||'')));
+  });
+  // 用 SheetJS 產生 xlsx
+  const headers=['月份','廠商代號','廠商','發票號碼','發票日期','發票金額','狀態','結帳日期','備註'];
+  const data=[headers].concat(all.map(r=>headers.map(h=>r[h]||'')));
+  const ws=XLSX.utils.aoa_to_sheet(data);
+  ws['!cols']=[{wch:12},{wch:12},{wch:16},{wch:18},{wch:14},{wch:14},{wch:14},{wch:14},{wch:30}];
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'對帳記錄');
+  // 加說明 sheet
+  const notes=[['📒 OEM 對帳記錄使用說明'],[],
+    ['1. 一張發票一行（同廠商同月可有多張發票，就填多行）'],
+    ['2. 月份格式：YYYY-MM，如 2026-04'],
+    ['3. 廠商代號：跟廠商資料表一致（V0003、V0005 等）'],
+    ['4. 發票日期格式：YYYY/MM/DD'],
+    ['5. 狀態：空白 = 待核對 / 已核對 / 已付款'],
+    ['6. 此 Excel 由儀表板自動產生，請拖到 Drive 覆蓋原檔（檔名要一樣）'],
+  ];
+  const ws2=XLSX.utils.aoa_to_sheet(notes);
+  ws2['!cols']=[{wch:80}];
+  XLSX.utils.book_append_sheet(wb,ws2,'使用說明');
+  XLSX.writeFile(wb,'OEM對帳記錄 RC.xlsx');
+  alert('✅ 已下載 OEM對帳記錄 RC.xlsx\n\n👉 下一步：\n1. 開 Drive → cowork(營運) → OEM\n2. 把剛下載的 Excel 拖到資料夾（會問是否取代 → 點「取代」）\n3. 之後同步即會以 Excel 為準，草稿自動清除');
+}
 
 function initPayables(){
   if(_paInit)return;_paInit=true;
@@ -1064,13 +1148,21 @@ function refreshPayables(){
   });
   let vendors=Object.values(groups).sort((a,b)=>b.total-a.total);
 
-  // 從 Excel 對帳記錄抓發票資料
+  // 自動清掉已同步進 Excel 的草稿
+  cleanDrafts();
+  updateDraftCount();
+  // 從 Excel + localStorage 草稿合併抓發票資料
   vendors.forEach(g=>{
-    g.invoices=getReconInvoices(g.code,month);
-    // 狀態判定：任一張為已付款 → 廠商標已付款；全部為已核對/已付款 → 已核對；其餘 待核對
+    const excelInvs=getReconInvoices(g.code,month).map(r=>Object.assign({_src:'excel'},r));
+    const drafts=getDraftInvoices(g.code,month);
+    // 找出每筆 draft 在全域 drafts 陣列中的 index
+    const allDrafts=loadDrafts();
+    drafts.forEach(d=>{d._src='draft';d._idx=allDrafts.indexOf(d);});
+    g.invoices=excelInvs.concat(drafts);
     const allStatuses=g.invoices.map(i=>(i['狀態']||'').trim());
     g.paid=g.invoices.length>0 && allStatuses.every(s=>s==='已付款');
     g.reconciled=g.invoices.length>0 && allStatuses.every(s=>s==='已核對'||s==='已付款');
+    g.hasDraft=drafts.length>0;
   });
   // 篩選
   if(payFilter.pending)vendors=vendors.filter(g=>!g.reconciled);
@@ -1110,6 +1202,7 @@ function refreshPayables(){
     if(g.paid)tag=`<span class="pa-tag" style="background:#dbeafe;color:#1e40af">💰 已付款</span>`;
     else if(g.reconciled)tag=`<span class="pa-tag match">✅ 已核對</span>`;
     else if(invs.length===0)tag=`<span class="pa-tag" style="background:#fee2e2;color:#b91c1c">⏳ 待核對</span>`;
+    if(g.hasDraft)tag+=`<span class="pa-tag" style="background:#fed7aa;color:#c2410c">📝 草稿</span>`;
     if(invs.length===1)tag+=`<span class="pa-tag invoice">📄 ${invs[0]['發票號碼']}</span>`;
     else if(invs.length>1)tag+=`<span class="pa-tag invoice">📄 ${invs.length} 張發票</span>`;
     if(totalInvAmt){
@@ -1124,21 +1217,39 @@ function refreshPayables(){
       tbl+=`<tr><td>${r['進貨日期']||''}</td><td style="color:#3b82f6">${r['進貨單號']||''}</td><td style="color:#3b82f6">${r['採購單號']||''}</td><td>${r['產品代號']||''}</td><td>${r['產品名稱']||''}</td><td style="color:#94a3b8">${r['進貨批號']||''}</td><td class="num">${(r['數量']||0).toLocaleString()}</td><td class="num">${(r['單價']||0).toLocaleString()}</td><td class="num">${NT(sub)}</td><td class="num" style="color:#a855f7">${NT(Math.round(sub*0.05))}</td></tr>`;
     });
     tbl+='</tbody></table>';
-    // 發票表格（只讀，從 Excel 抓）
-    let invTbl='';
-    if(invs.length>0){
-      invTbl='<table class="pa-detail-table" style="margin-bottom:14px"><thead><tr><th style="width:40px">#</th><th>📄 發票號碼</th><th>📅 發票日</th><th class="num">💵 發票金額</th><th>狀態</th><th>結帳日</th><th>備註</th></tr></thead><tbody>';
-      invs.forEach((inv,idx)=>{
-        const stColor=inv['狀態']==='已付款'?'#2563eb':(inv['狀態']==='已核對'?'#059669':'#dc2626');
-        const stTag=`<span style="background:${inv['狀態']==='已付款'?'#dbeafe':(inv['狀態']==='已核對'?'#dcfce7':'#fee2e2')};color:${stColor};padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600">${inv['狀態']||'待核對'}</span>`;
-        invTbl+=`<tr><td>#${idx+1}</td><td><b>${inv['發票號碼']||'-'}</b></td><td>${inv['發票日期']||'-'}</td><td class="num"><b>${NT(inv['發票金額']||0)}</b></td><td>${stTag}</td><td>${inv['結帳日期']||'-'}</td><td style="color:#64748b">${inv['備註']||''}</td></tr>`;
-      });
-      invTbl+='</tbody></table>';
+    // 發票表格（含草稿可編輯）
+    const stOptions=['','待核對','已核對','已付款'];
+    let invTbl='<table class="pa-detail-table" style="margin-bottom:14px"><thead><tr><th style="width:40px">#</th><th>📄 發票號碼</th><th>📅 發票日</th><th class="num">💵 發票金額</th><th>狀態</th><th>結帳日</th><th>備註</th><th style="width:80px">操作</th></tr></thead><tbody>';
+    if(invs.length===0){
+      invTbl+='<tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:14px">尚無發票，點下方「+ 新增發票」開始</td></tr>';
     }else{
-      invTbl=`<div style="background:#fef2f2;border:1px dashed #fca5a5;border-radius:8px;padding:14px;color:#b91c1c;text-align:center;margin-bottom:14px">
-        ⏳ 此廠商本月尚無發票記錄 — 請至 Drive 編輯 <b>OEM對帳記錄 RC.xlsx</b> 新增一行
-      </div>`;
+      invs.forEach((inv,idx)=>{
+        if(inv._src==='excel'){
+          // Excel 來源：唯讀
+          const st=(inv['狀態']||'').trim();
+          const stColor=st==='已付款'?'#2563eb':(st==='已核對'?'#059669':'#dc2626');
+          const stBg=st==='已付款'?'#dbeafe':(st==='已核對'?'#dcfce7':'#fee2e2');
+          const stTag=`<span style="background:${stBg};color:${stColor};padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600">${st||'待核對'}</span>`;
+          invTbl+=`<tr><td>#${idx+1}</td><td><b>${inv['發票號碼']||'-'}</b></td><td>${inv['發票日期']||'-'}</td><td class="num"><b>${NT(inv['發票金額']||0)}</b></td><td>${stTag}</td><td>${inv['結帳日期']||'-'}</td><td style="color:#64748b">${inv['備註']||''}</td><td style="color:#10b981;font-size:11px">☁ Excel</td></tr>`;
+        }else{
+          // 草稿：可編輯
+          const i=inv._idx;
+          const stOpts=stOptions.map(o=>`<option value="${o}" ${o===(inv['狀態']||'')?'selected':''}>${o||'待核對'}</option>`).join('');
+          invTbl+=`<tr style="background:#fff7ed">
+            <td>#${idx+1}<br><span style="background:#fed7aa;color:#c2410c;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600">草稿</span></td>
+            <td><input value="${inv['發票號碼']||''}" placeholder="EX12345678" oninput="updateDraft(${i},'發票號碼',this.value)" style="width:130px;padding:4px 8px;border:1px solid #fdba74;border-radius:5px;font-size:12px"></td>
+            <td><input type="date" value="${inv['發票日期']||''}" oninput="updateDraft(${i},'發票日期',this.value)" style="width:130px;padding:4px 8px;border:1px solid #fdba74;border-radius:5px;font-size:12px"></td>
+            <td><input type="number" value="${inv['發票金額']||''}" placeholder="0" oninput="updateDraft(${i},'發票金額',this.value)" style="width:100px;padding:4px 8px;border:1px solid #fdba74;border-radius:5px;font-size:12px;text-align:right"></td>
+            <td><select onchange="updateDraft(${i},'狀態',this.value)" style="padding:4px 8px;border:1px solid #fdba74;border-radius:5px;font-size:12px">${stOpts}</select></td>
+            <td><input type="date" value="${inv['結帳日期']||''}" oninput="updateDraft(${i},'結帳日期',this.value)" style="width:130px;padding:4px 8px;border:1px solid #fdba74;border-radius:5px;font-size:12px"></td>
+            <td><input value="${inv['備註']||''}" oninput="updateDraft(${i},'備註',this.value)" style="width:130px;padding:4px 8px;border:1px solid #fdba74;border-radius:5px;font-size:12px"></td>
+            <td><button onclick="deleteDraft(${i})" style="background:#fee2e2;color:#b91c1c;border:none;padding:4px 8px;border-radius:4px;font-size:11px;cursor:pointer">🗑️</button></td>
+          </tr>`;
+        }
+      });
     }
+    invTbl+=`<tr><td colspan="8" style="text-align:center;padding:8px"><button onclick="addDraftInvoice({code:'${g.code}',name:'${g.name}'},'${month}')" style="background:#10b981;color:#fff;border:none;padding:6px 16px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer">➕ 新增發票</button></td></tr>`;
+    invTbl+='</tbody></table>';
     const totalInvDisplay=totalInvAmt?` <span style="color:${matched?'#059669':'#dc2626'};font-weight:700">→ 共 ${NT(totalInvAmt)} ${matched?'✓ 相符':`(差額 ${diff>=0?'+':''}${diff})`}</span>`:'';
     html+=`<div class="pa-card">
       <div class="pa-head ${headCls}" onclick="var b=this.nextElementSibling;b.style.display=b.style.display==='none'||!b.style.display?'block':'none'">
