@@ -1067,6 +1067,51 @@ function addDraftInvoice(vendor,month){
   saveDrafts(drafts);
   refreshPayables();
 }
+// 把雲端 Excel 列轉成可編輯草稿 → 同步時草稿覆蓋原值
+function excelToDraft_(invJsonEnc){
+  const inv=JSON.parse(decodeURIComponent(invJsonEnc));
+  const drafts=loadDrafts();
+  // 從 RECON 中找出並移除這筆（避免重複），其餘 RECON 保留
+  const k=`${inv['月份']}|${inv['廠商代號']}|${(inv['發票號碼']||'').trim()}`;
+  // 新增為草稿
+  const draft={
+    '月份':inv['月份']||'',
+    '廠商代號':inv['廠商代號']||'',
+    '廠商':inv['廠商']||'',
+    '發票號碼':inv['發票號碼']||'',
+    '發票日期':inv['發票日期']||'',
+    '發票金額':inv['發票金額']||0,
+    '狀態':inv['狀態']||'',
+    '預計付款日':inv['預計付款日']||'',
+    '實際付款日':inv['實際付款日']||'',
+    '備註':inv['備註']||'',
+  };
+  drafts.push(draft);
+  saveDrafts(drafts);
+  // 把 RECON 中那筆移除，避免雙重顯示
+  for(let i=RECON.length-1;i>=0;i--){
+    const r=RECON[i];
+    const rk=`${r['月份']}|${r['廠商代號']}|${(r['發票號碼']||'').trim()}`;
+    if(rk===k){RECON.splice(i,1);break;}
+  }
+  return draft;
+}
+function editExcelRow(invJsonEnc){
+  excelToDraft_(invJsonEnc);
+  refreshPayables();
+}
+function quickMarkPaid(invJsonEnc){
+  excelToDraft_(invJsonEnc);
+  // 找剛新增的這筆（最後一筆）→ 設為已付款 + 今天
+  const drafts=loadDrafts();
+  const last=drafts.length-1;
+  drafts[last]['狀態']='已付款';
+  const today=new Date();
+  drafts[last]['實際付款日']=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+  saveDrafts(drafts);
+  refreshPayables();
+  showCloudStatus('💡 已標記，點 ⬆️ 上傳到雲端 才會生效');
+}
 function updateDraft(idx,field,value){
   const drafts=loadDrafts();
   if(idx<0||idx>=drafts.length)return;  // 防呆
@@ -1301,7 +1346,11 @@ function refreshPayables(){
             else if(diffDays<=7)dueStyle='color:#d97706;font-weight:600';
           }
           const paidColor=inv['實際付款日']?'color:#2563eb;font-weight:600':'';
-          invTbl+=`<tr><td>#${idx+1}</td><td><b>${inv['發票號碼']||'-'}</b></td><td>${inv['發票日期']||'-'}</td><td class="num"><b>${NT(inv['發票金額']||0)}</b></td><td>${stTag}</td><td style="${dueStyle}">${inv['預計付款日']||'-'}</td><td style="${paidColor}">${inv['實際付款日']||'-'}</td><td style="color:#64748b">${inv['備註']||''}</td><td style="color:#10b981;font-size:11px">☁ Excel</td></tr>`;
+          // 用 JSON 編碼以便傳入 onclick（含中文/特殊字元安全）
+          const invEncoded=encodeURIComponent(JSON.stringify(inv));
+          const editBtn=`<button onclick="editExcelRow('${invEncoded}')" style="background:#fef3c7;color:#92400e;border:1px solid #fbbf24;padding:3px 8px;border-radius:4px;font-size:11px;cursor:pointer;font-weight:600">✏️ 改</button>`;
+          const quickPaidBtn=inv['狀態']!=='已付款'?` <button onclick="quickMarkPaid('${invEncoded}')" style="background:#dbeafe;color:#1e40af;border:1px solid #60a5fa;padding:3px 8px;border-radius:4px;font-size:11px;cursor:pointer;font-weight:600;margin-left:4px">💰 已付款</button>`:'';
+          invTbl+=`<tr><td>#${idx+1}</td><td><b>${inv['發票號碼']||'-'}</b></td><td>${inv['發票日期']||'-'}</td><td class="num"><b>${NT(inv['發票金額']||0)}</b></td><td>${stTag}</td><td style="${dueStyle}">${inv['預計付款日']||'-'}</td><td style="${paidColor}">${inv['實際付款日']||'-'}</td><td style="color:#64748b">${inv['備註']||''}</td><td>${editBtn}${quickPaidBtn}</td></tr>`;
         }else{
           // 草稿：可編輯
           const i=inv._idx;
