@@ -1063,7 +1063,7 @@ function calcDueDate(vendorCode,invoiceDate){
 }
 function addDraftInvoice(vendor,month){
   const drafts=loadDrafts();
-  drafts.push({月份:month,廠商代號:vendor.code,廠商:vendor.name,發票號碼:'',發票日期:'',發票金額:0,狀態:'',預計付款日:'',備註:''});
+  drafts.push({月份:month,廠商代號:vendor.code,廠商:vendor.name,發票號碼:'',發票日期:'',發票金額:0,狀態:'',預計付款日:'',實際付款日:'',備註:''});
   saveDrafts(drafts);
   refreshPayables();
 }
@@ -1072,19 +1072,26 @@ function updateDraft(idx,field,value){
   if(idx<0||idx>=drafts.length)return;  // 防呆
   if(field==='發票金額')value=parseFloat(value)||0;
   drafts[idx][field]=value;
-  // 發票日期改了 → 自動帶入預計付款日（不刷新頁面，直接改對應 DOM input）
+  const helper=(f,v)=>{
+    const inputs=document.querySelectorAll('.pa-detail-table input');
+    inputs.forEach(inp=>{
+      const oi=inp.getAttribute('oninput')||'';
+      const m=oi.match(new RegExp(`updateDraft\\\\((\\\\d+),'${f}'`));
+      if(m && parseInt(m[1])===idx)inp.value=v;
+    });
+  };
+  // 發票日期改了 → 自動帶入預計付款日
   if(field==='發票日期' && !drafts[idx]['預計付款日']){
     const due=calcDueDate(drafts[idx]['廠商代號'],value);
-    if(due){
-      drafts[idx]['預計付款日']=due;
-      // 直接更新該列的「預計付款日」input，不重繪整頁
-      const inputs=document.querySelectorAll('.pa-detail-table input');
-      inputs.forEach(inp=>{
-        const oi=inp.getAttribute('oninput')||'';
-        const m=oi.match(/updateDraft\((\d+),'預計付款日'/);
-        if(m && parseInt(m[1])===idx)inp.value=due;
-      });
-    }
+    if(due){drafts[idx]['預計付款日']=due;helper('預計付款日',due);}
+  }
+  // 狀態改成「已付款」→ 自動帶入今天作為實際付款日
+  if(field==='狀態' && value==='已付款' && !drafts[idx]['實際付款日']){
+    const today=new Date();
+    const y=today.getFullYear(),mo=String(today.getMonth()+1).padStart(2,'0'),da=String(today.getDate()).padStart(2,'0');
+    const todayStr=`${y}-${mo}-${da}`;
+    drafts[idx]['實際付款日']=todayStr;
+    helper('實際付款日',todayStr);
   }
   saveDrafts(drafts);
   updateDraftCount();
@@ -1273,9 +1280,9 @@ function refreshPayables(){
     tbl+='</tbody></table>';
     // 發票表格（含草稿可編輯）
     const stOptions=['','待核對','已核對','已付款'];
-    let invTbl='<table class="pa-detail-table" style="margin-bottom:14px"><thead><tr><th style="width:40px">#</th><th>📄 發票號碼</th><th>📅 發票日</th><th class="num">💵 發票金額</th><th>狀態</th><th>預計付款日</th><th>備註</th><th style="width:80px">操作</th></tr></thead><tbody>';
+    let invTbl='<table class="pa-detail-table" style="margin-bottom:14px"><thead><tr><th style="width:40px">#</th><th>📄 發票號碼</th><th>📅 發票日</th><th class="num">💵 發票金額</th><th>狀態</th><th>預計付款日</th><th>💰 實際付款日</th><th>備註</th><th style="width:80px">操作</th></tr></thead><tbody>';
     if(invs.length===0){
-      invTbl+='<tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:14px">尚無發票，點下方「+ 新增發票」開始</td></tr>';
+      invTbl+='<tr><td colspan="9" style="text-align:center;color:#94a3b8;padding:14px">尚無發票，點下方「+ 新增發票」開始</td></tr>';
     }else{
       invs.forEach((inv,idx)=>{
         if(inv._src==='excel'){
@@ -1293,7 +1300,8 @@ function refreshPayables(){
             if(diffDays<0)dueStyle='color:#dc2626;font-weight:700';
             else if(diffDays<=7)dueStyle='color:#d97706;font-weight:600';
           }
-          invTbl+=`<tr><td>#${idx+1}</td><td><b>${inv['發票號碼']||'-'}</b></td><td>${inv['發票日期']||'-'}</td><td class="num"><b>${NT(inv['發票金額']||0)}</b></td><td>${stTag}</td><td style="${dueStyle}">${inv['預計付款日']||'-'}</td><td style="color:#64748b">${inv['備註']||''}</td><td style="color:#10b981;font-size:11px">☁ Excel</td></tr>`;
+          const paidColor=inv['實際付款日']?'color:#2563eb;font-weight:600':'';
+          invTbl+=`<tr><td>#${idx+1}</td><td><b>${inv['發票號碼']||'-'}</b></td><td>${inv['發票日期']||'-'}</td><td class="num"><b>${NT(inv['發票金額']||0)}</b></td><td>${stTag}</td><td style="${dueStyle}">${inv['預計付款日']||'-'}</td><td style="${paidColor}">${inv['實際付款日']||'-'}</td><td style="color:#64748b">${inv['備註']||''}</td><td style="color:#10b981;font-size:11px">☁ Excel</td></tr>`;
         }else{
           // 草稿：可編輯
           const i=inv._idx;
@@ -1305,13 +1313,14 @@ function refreshPayables(){
             <td><input type="number" value="${inv['發票金額']||''}" placeholder="0" oninput="updateDraft(${i},'發票金額',this.value)" style="width:100px;padding:4px 8px;border:1px solid #fdba74;border-radius:5px;font-size:12px;text-align:right"></td>
             <td><select onchange="updateDraft(${i},'狀態',this.value)" style="padding:4px 8px;border:1px solid #fdba74;border-radius:5px;font-size:12px">${stOpts}</select></td>
             <td><input type="date" value="${inv['預計付款日']||''}" oninput="updateDraft(${i},'預計付款日',this.value)" style="width:130px;padding:4px 8px;border:1px solid #fdba74;border-radius:5px;font-size:12px"></td>
+            <td><input type="date" value="${inv['實際付款日']||''}" oninput="updateDraft(${i},'實際付款日',this.value)" style="width:130px;padding:4px 8px;border:1px solid #fdba74;border-radius:5px;font-size:12px"></td>
             <td><input value="${inv['備註']||''}" oninput="updateDraft(${i},'備註',this.value)" style="width:130px;padding:4px 8px;border:1px solid #fdba74;border-radius:5px;font-size:12px"></td>
             <td><button onclick="deleteDraft(${i})" style="background:#fee2e2;color:#b91c1c;border:none;padding:4px 8px;border-radius:4px;font-size:11px;cursor:pointer">🗑️</button></td>
           </tr>`;
         }
       });
     }
-    invTbl+=`<tr><td colspan="8" style="text-align:center;padding:8px"><button onclick="addDraftInvoice({code:'${g.code}',name:'${g.name}'},'${month}')" style="background:#10b981;color:#fff;border:none;padding:6px 16px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer">➕ 新增發票</button></td></tr>`;
+    invTbl+=`<tr><td colspan="9" style="text-align:center;padding:8px"><button onclick="addDraftInvoice({code:'${g.code}',name:'${g.name}'},'${month}')" style="background:#10b981;color:#fff;border:none;padding:6px 16px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer">➕ 新增發票</button></td></tr>`;
     invTbl+='</tbody></table>';
     const totalInvDisplay=totalInvAmt?` <span style="color:${matched?'#059669':'#dc2626'};font-weight:700">→ 共 ${NT(totalInvAmt)} ${matched?'✓ 相符':`(差額 ${diff>=0?'+':''}${diff})`}</span>`:'';
     html+=`<div class="pa-card">
